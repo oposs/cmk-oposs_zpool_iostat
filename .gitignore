@@ -1,0 +1,14 @@
+/*
+!/local
+!/LICENSE
+!/*.md
+!/.gitignore
+*~
+*.swp
+*.bak
+*.tmp
+*.log
+*.DS_Store
+*.idea
+*.env
+__pycache__

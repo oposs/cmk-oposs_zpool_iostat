@@ -1,0 +1,167 @@
+title: OPOSS zpool iostat: I/O Performance Monitoring
+agents: linux
+catalog: os/storage
+license: GPL
+distribution: check_mk
+description:
+ This check monitors ZFS storage pool I/O performance and statistics using the
+ {zpool iostat} command. It tracks comprehensive metrics including I/O operations,
+ throughput, latency, storage utilization, and queue depths.
+
+ The check provides detailed monitoring of ZFS pool performance characteristics:
+ - I/O operations per second (read/write)
+ - Data throughput (read/write bandwidth)
+ - I/O latency and wait times
+ - Storage pool capacity utilization
+ - Queue depths and active operations
+ - Synchronous and asynchronous I/O statistics
+ - Scrub and trim operation statistics
+
+ The plugin uses the {zpool iostat -Hylpq} command to collect detailed statistics
+ with parseable output, latency information, and queue statistics. Data is
+ collected over a configurable sampling interval to provide meaningful averages.
+
+ This check requires ZFS to be installed and at least one zpool to be configured
+ on the monitored system. The check automatically discovers all available zpools
+ and creates individual services for each pool.
+
+ The agent plugin is implemented in Python 3 with comprehensive error handling,
+ configurable timeouts, and support for Agent Bakery deployment. Configuration
+ options include sampling intervals, command timeouts, and detailed statistics
+ collection.
+
+ Storage utilization monitoring includes configurable thresholds for warning
+ and critical states based on pool capacity usage. I/O performance monitoring
+ supports optional thresholds for operations per second, throughput rates,
+ and latency measurements.
+
+ Advanced features include monitoring of ZFS-specific queue statistics:
+ - Sync and async I/O queue depths
+ - Per-operation type latencies
+ - Scrub and trim operation queues
+ - Active vs pending operation counts
+
+item:
+ The ZFS pool name (e.g. {tank}, {data}, {rpool})
+
+discovery:
+ One service is created for each ZFS pool that is available and accessible
+ through the {zpool iostat} command. Services are named "ZPool I/O <pool_name>"
+ (e.g. "ZPool I/O tank").
+
+ Discovery requires the zpool command to be available and at least one pool
+ to be imported and accessible. Pools that are not imported or are in a
+ degraded state may not be discovered depending on their accessibility.
+
+perfdata:
+ The check provides comprehensive performance data including:
+
+ Basic I/O metrics:
+ - {read_ops} - Read operations per second
+ - {write_ops} - Write operations per second
+ - {read_throughput} - Read throughput in bytes per second
+ - {write_throughput} - Write throughput in bytes per second
+
+ Storage capacity:
+ - {allocated} - Allocated storage space in bytes
+ - {free} - Free storage space in bytes
+ - {storage_used_percent} - Storage utilization percentage
+
+ Latency metrics:
+ - {read_wait} - Average read I/O wait time in milliseconds
+ - {write_wait} - Average write I/O wait time in milliseconds
+ - {disk_read_wait} - Disk-level read wait time
+ - {disk_write_wait} - Disk-level write wait time
+
+ Queue statistics (when available):
+ - {syncq_read_wait} - Synchronous read queue wait time
+ - {syncq_write_wait} - Synchronous write queue wait time
+ - {asyncq_read_wait} - Asynchronous read queue wait time
+ - {asyncq_write_wait} - Asynchronous write queue wait time
+ - {scrub_wait} - Scrub operation wait time
+ - {trim_wait} - Trim operation wait time
+
+ Queue depths:
+ - {syncq_read_pend} - Pending synchronous read operations
+ - {syncq_read_activ} - Active synchronous read operations
+ - {syncq_write_pend} - Pending synchronous write operations
+ - {syncq_write_activ} - Active synchronous write operations
+ - {asyncq_read_pend} - Pending asynchronous read operations
+ - {asyncq_read_activ} - Active asynchronous read operations
+ - {asyncq_write_pend} - Pending asynchronous write operations
+ - {asyncq_write_activ} - Active asynchronous write operations
+
+ Special operation queues:
+ - {scrubq_read_pend} - Pending scrub read operations
+ - {scrubq_read_activ} - Active scrub read operations
+ - {trimq_read_pend} - Pending trim read operations
+ - {trimq_read_activ} - Active trim read operations
+
+parameters:
+ Storage utilization levels:
+ - {storage_levels} - Warning/Critical thresholds for storage utilization percentage
+
+ I/O operation thresholds:
+ - {read_ops_levels} - Warning/Critical thresholds for read operations per second
+ - {write_ops_levels} - Warning/Critical thresholds for write operations per second
+
+ Latency thresholds:
+ - {read_wait_levels} - Warning/Critical thresholds for read wait time in milliseconds
+ - {write_wait_levels} - Warning/Critical thresholds for write wait time in milliseconds
+
+ Throughput monitoring:
+ - {read_throughput_levels} - Warning/Critical thresholds for read throughput in bytes/second
+ - {write_throughput_levels} - Warning/Critical thresholds for write throughput in bytes/second
+
+ Advanced latency monitoring:
+ - {disk_wait_levels} - Warning/Critical thresholds for disk-level I/O wait times
+
+ Queue wait time monitoring:
+ - {syncq_read_wait_levels} - Thresholds for synchronous read queue wait times
+ - {syncq_write_wait_levels} - Thresholds for synchronous write queue wait times
+ - {asyncq_read_wait_levels} - Thresholds for asynchronous read queue wait times
+ - {asyncq_write_wait_levels} - Thresholds for asynchronous write queue wait times
+ - {scrub_wait_levels} - Thresholds for scrub operation wait times
+ - {trim_wait_levels} - Thresholds for trim operation wait times
+
+ Queue depth monitoring:
+ - {syncq_read_pend_levels} - Thresholds for pending synchronous read operations
+ - {syncq_read_activ_levels} - Thresholds for active synchronous read operations
+ - {syncq_write_pend_levels} - Thresholds for pending synchronous write operations
+ - {syncq_write_activ_levels} - Thresholds for active synchronous write operations
+ - {asyncq_read_pend_levels} - Thresholds for pending asynchronous read operations
+ - {asyncq_read_activ_levels} - Thresholds for active asynchronous read operations
+ - {asyncq_write_pend_levels} - Thresholds for pending asynchronous write operations
+ - {asyncq_write_activ_levels} - Thresholds for active asynchronous write operations
+ - {scrubq_read_pend_levels} - Thresholds for pending scrub read operations
+ - {scrubq_read_activ_levels} - Thresholds for active scrub read operations
+ - {trimq_read_pend_levels} - Thresholds for pending trim read operations
+ - {trimq_read_activ_levels} - Thresholds for active trim read operations
+
+cluster:
+ In cluster environments, the check can be configured to monitor ZFS pools
+ across multiple nodes. Each node reports its local pool statistics, and
+ cluster-wide aggregation can be performed for shared storage configurations.
+
+ For clustered ZFS setups, ensure that pool access is properly configured
+ and that the monitoring does not interfere with cluster operations.
+
+examples:
+ Check a pool with default settings:
+ Pool "tank" shows normal I/O activity with 150 read ops/s, 75 write ops/s,
+ and 65% storage utilization.
+
+ Check with custom thresholds:
+ Pool "data" configured with storage thresholds at 85%/95% and I/O operation
+ thresholds at 500/1000 ops/s for reads and 250/500 ops/s for writes.
+
+ High-performance monitoring:
+ Pool "nvme-pool" with detailed queue statistics enabled, showing sync/async
+ I/O patterns and queue depths for performance optimization.
+
+ Error conditions:
+ - Pool not accessible: Service reports UNKNOWN state
+ - ZFS command timeout: Service reports UNKNOWN with timeout message
+ - Parse errors: Service reports UNKNOWN with parsing error details
+ - High latency: Service reports WARNING/CRITICAL based on configured thresholds
+ - Storage near capacity: Service reports WARNING/CRITICAL based on utilization levels

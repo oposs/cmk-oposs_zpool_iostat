@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""
+CheckMK Agent Plugin for OPOSS zpool iostat monitoring
+Collects detailed I/O statistics from zpool iostat command
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+from typing import Dict, List, Optional
+
+# Configuration file path using MK_CONFDIR environment variable
+CONFIG_FILE = os.path.join(os.environ.get("MK_CONFDIR", "/etc/check_mk"), "oposs_zpool_iostat.json")
+
+def get_config() -> Dict:
+    """Read and parse the JSON configuration file."""
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional[str]:
+    """
+    Run zpool iostat command and return output.
+    
+    Args:
+        timeout: Command timeout in seconds
+        sampling_duration: How long iostat collects data before reporting
+        
+    Returns:
+        Raw iostat output or None on error
+    """
+    try:
+        # Use -H for scripting, -y for omit header, -l for latency, -p for parsable, -q for queue stats
+        cmd = ['/sbin/zpool', 'iostat', '-Hylpq', str(sampling_duration), '1']
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        if result.returncode != 0:
+            print(f"ERROR: zpool iostat failed with code {result.returncode}: {result.stderr}", file=sys.stderr)
+            return None
+            
+        return result.stdout.strip()
+        
+    except subprocess.TimeoutExpired:
+        print(f"ERROR: zpool iostat command timed out after {timeout} seconds", file=sys.stderr)
+        return None
+    except FileNotFoundError:
+        print("ERROR: zpool command not found. ZFS not installed?", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"ERROR: Unexpected error running zpool iostat: {e}", file=sys.stderr)
+        return None
+
+def parse_iostat_output(output: str) -> Dict[str, Dict]:
+    """
+    Parse zpool iostat output into structured JSON data.
+    
+    Args:
+        output: Raw iostat output
+        
+    Returns:
+        Dictionary with pool names as keys and structured data as values
+    """
+    pools = {}
+    
+    # ZFS iostat field mapping for zpool iostat -Hylpq output
+    field_names = [
+        'pool', 'alloc', 'free', 'read_ops', 'write_ops', 'read_bytes', 'write_bytes',
+        'read_wait', 'write_wait', 'disk_read_wait', 'disk_write_wait',
+        'syncq_read_wait', 'syncq_write_wait', 'asyncq_read_wait', 'asyncq_write_wait',
+        'scrub_wait', 'trim_wait', 'syncq_read_pend', 'syncq_read_activ',
+        'syncq_write_pend', 'syncq_write_activ', 'asyncq_read_pend', 'asyncq_read_activ',
+        'asyncq_write_pend', 'asyncq_write_activ', 'scrubq_read_pend', 'scrubq_read_activ',
+        'trimq_read_pend', 'trimq_read_activ'
+    ]
+    
+    for line in output.split('\n'):
+        if not line.strip():
+            continue
+            
+        # Split by tabs (zpool iostat -H uses tabs)
+        fields = line.split('\t')
+        
+        if len(fields) < 3:  # Skip malformed lines
+            continue
+            
+        pool_name = fields[0]
+        pool_data = {}
+        
+        # Map fields to structured data
+        for i, field_name in enumerate(field_names):
+            if i >= len(fields):
+                break
+                
+            if field_name == 'pool':
+                pool_data[field_name] = pool_name
+            else:
+                # Convert numeric fields, replace '-' with 0
+                raw_value = fields[i]
+                if raw_value == '-':
+                    pool_data[field_name] = 0
+                else:
+                    try:
+                        # Try to convert to appropriate numeric type
+                        if '.' in raw_value:
+                            pool_data[field_name] = float(raw_value)
+                        else:
+                            pool_data[field_name] = int(raw_value)
+                    except ValueError:
+                        pool_data[field_name] = 0
+        
+        pools[pool_name] = pool_data
+    
+    return pools
+
+def main():
+    """Main function to collect and output zpool iostat data."""
+    # Read configuration
+    config = get_config()
+    timeout = config.get("timeout", 30)
+    sampling_duration = config.get("sampling_duration", 10)
+    enabled = config.get("enabled", True)
+    
+    # Check if monitoring is enabled
+    if not enabled:
+        return
+    
+    # Always start with section header - using JSON encoding with custom separator
+    print("<<<oposs_zpool_iostat:sep(124)>>>")
+    
+    # Get iostat data
+    iostat_output = run_zpool_iostat(timeout, sampling_duration)
+    if iostat_output is None:
+        # Output error state for monitoring
+        print("ERROR|No data available", file=sys.stderr)
+        sys.exit(1)
+    
+    # Parse and output structured data as JSON
+    try:
+        parsed_pools = parse_iostat_output(iostat_output)
+        
+        if not parsed_pools:
+            print("ERROR|No pools found", file=sys.stderr)
+            sys.exit(1)
+        
+        # Output each pool as JSON with pipe separator
+        for pool_name, pool_data in parsed_pools.items():
+            json_data = json.dumps(pool_data, separators=(',', ':'))
+            print(f"{pool_name}|{json_data}")
+            
+    except Exception as e:
+        print(f"ERROR|Parsing failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
