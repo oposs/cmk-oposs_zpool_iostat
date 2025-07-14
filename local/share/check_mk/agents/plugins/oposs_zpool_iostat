@@ -130,11 +130,6 @@ def main():
     config = get_config()
     timeout = config.get("timeout", 30)
     sampling_duration = config.get("sampling_duration", 10)
-    enabled = config.get("enabled", True)
-    
-    # Check if monitoring is enabled
-    if not enabled:
-        return
     
     # Always start with section header - using JSON encoding with custom separator
     print("<<<oposs_zpool_iostat:sep(124)>>>")

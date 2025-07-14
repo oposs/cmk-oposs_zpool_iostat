@@ -20,13 +20,13 @@ CheckMK agent-based check plugins consist of two main components:
 
 ### Directory Structure
 ```
-~/local/lib/python3/cmk_addons/plugins/
+~/local/lib/python3/cmk_addons/plugins/my_plugin
 ├── agent_based/           # Check plugins (using cmk.agent_based.v2)
 ├── graphing/             # Graphing definitions (using cmk.graphing.v1)
 ├── rulesets/             # Rule specifications (using cmk.rulesets.v1)
 └── server_side_calls/    # Special agents (using cmk.server_side_calls.v1)
 
-~/local/lib/check_mk/base/cee/plugins/bakery/
+~/local/lib/python3/cmk/base/cee/plugins/bakery/
 └──                       # Agent bakery plugins (using cmk.base.plugins.bakery.bakery_api.v1)
 
 ~/local/share/check_mk/agents/plugins/
@@ -898,7 +898,7 @@ def _parameter_form_my_service():
 # Register the bakery rule specification
 rule_spec_my_service_bakery = AgentConfig(
     name="my_service",
-    title=Title("My Service Agent Plugin"),
+    title=Title("My Service Agent Deployment"),
     topic=Topic.GENERAL,
     parameter_form=_parameter_form_my_service,
 )
@@ -944,9 +944,7 @@ from typing import Any, Dict
 
 def get_my_service_advanced_files(conf: Dict[str, Any]):
     """Advanced files function with multiple plugin variants"""
-    if conf is None or not conf.get("enabled", True):
-        return
-    
+
     # Get configuration values
     interval = conf.get('interval', 60)
     timeout = conf.get('timeout', 30)
@@ -1049,12 +1047,13 @@ from cmk.rulesets.v1.form_specs import (
 from cmk.rulesets.v1.rule_specs import (
     CheckParameters,
     HostAndServiceCondition,
+    HostAndItemCondition,
     Topic,
 )
 
 def _form_spec_my_service():
     return Dictionary(
-        title=Title("My Service Configuration"),
+        title=Title("My Service Check Configuration"),
         elements={
             "levels": DictElement(
                 parameter_form=SimpleLevels(
@@ -1076,24 +1075,89 @@ def _form_spec_my_service():
                 ),
                 required=False,
             ),
-            "enabled": DictElement(
-                parameter_form=BooleanChoice(
-                    title=Title("Enable monitoring"),
-                    label=Label("Enable this service"),
-                    prefill=DefaultValue(True),
-                ),
-                required=False,
-            ),
         },
     )
 
-rule_spec_my_service = CheckParameters(
-    title=Title("My Service"),
+# For check plugins WITHOUT items (single service per host)
+rule_spec_my_service_no_items = CheckParameters(
+    title=Title("My Service Ruleset"),
     topic=Topic.APPLICATIONS,
     name="my_service",
     parameter_form=_form_spec_my_service,
     condition=HostAndServiceCondition(service_name="My Service"),
 )
+
+# For check plugins WITH items (multiple services per host)
+rule_spec_my_service_with_items = CheckParameters(
+    title=Title("My Service Ruleset"),
+    topic=Topic.APPLICATIONS,
+    name="my_service_items",
+    parameter_form=_form_spec_my_service,
+    condition=HostAndItemCondition(item_title=Title("Service Instance")),
+)
+```
+
+### Ruleset Conditions: HostAndServiceCondition vs HostAndItemCondition
+
+**Critical Decision Point**: Choose the correct condition type based on your check plugin structure.
+
+#### HostAndServiceCondition
+Use for check plugins that create **single services per host** (no items):
+
+```python
+from cmk.rulesets.v1.rule_specs import HostAndServiceCondition
+
+# For check plugins like system CPU, memory, uptime
+condition=HostAndServiceCondition(service_name="CPU utilization")
+```
+
+**Examples of non-item services:**
+- System CPU monitoring
+- Overall memory usage
+- System uptime
+- Single application monitoring
+
+#### HostAndItemCondition  
+Use for check plugins that create **multiple services per host** (with items):
+
+```python
+from cmk.rulesets.v1.rule_specs import HostAndItemCondition
+
+# For check plugins like filesystems, network interfaces, database tables
+condition=HostAndItemCondition(item_title=Title("ZPool name"))
+```
+
+**Examples of item-based services:**
+- Filesystem monitoring (item = mount point)
+- Network interface monitoring (item = interface name)
+- Database monitoring (item = database name)
+- **ZFS pool monitoring (item = pool name)** ← Our OPOSS zpool iostat case
+
+#### Real-World Example: OPOSS zpool iostat
+
+```python
+# File: ~/local/lib/python3/cmk_addons/plugins/rulesets/oposs_zpool_iostat.py
+
+rule_spec_oposs_zpool_iostat = CheckParameters(
+    title=Title("OPOSS zpool iostat monitoring"),
+    topic=Topic.STORAGE,
+    name="oposs_zpool_iostat", # Must match check_ruleset_name in CheckPlugin
+    parameter_form=_parameter_form_oposs_zpool_iostat,
+    condition=HostAndItemCondition(item_title=Title("ZPool name")), # Correct for multi-pool monitoring
+)
+```
+
+#### Common Mistake: Using the Wrong Condition Type
+
+**❌ WRONG** - Using HostAndServiceCondition for item-based checks:
+```python
+# This causes TypeError: HostAndServiceCondition.__init__() got an unexpected keyword argument 'service_name'
+condition=HostAndServiceCondition(service_name="ZPool I/O")
+```
+
+**✅ CORRECT** - Using HostAndItemCondition for item-based checks:
+```python
+condition=HostAndItemCondition(item_title=Title("ZPool name"))
 ```
 
 ### Advanced Form Specifications
@@ -1259,6 +1323,7 @@ graph_my_service_performance = Graph(
     simple_lines=[
         "my_service_response_time",
     ],
+    # mandatory! None is not allowed!
     minimal_range=MinimalRange(
         lower=0,
         upper=100,
@@ -1269,12 +1334,16 @@ graph_my_service_performance = Graph(
 graph_my_service_network = Bidirectional(
     name="my_service_network",
     title=Title("My Service Network Traffic"),
-    lower=[
-        "my_service_bytes_in",
-    ],
-    upper=[
-        "my_service_bytes_out",
-    ],
+    lower=Graph(
+        name="my_service_network_lower",
+        title=Title("Inbound Traffic"),
+        compound_lines=["my_service_bytes_in"],
+    ),
+    upper=Graph(
+        name="my_service_network_upper",
+        title=Title("Outbound Traffic"), 
+        compound_lines=["my_service_bytes_out"],
+    ),
 )
 ```
 
@@ -2377,3 +2446,87 @@ For additional resources:
 - CheckMK documentation for API references
 - Community forums for support and discussion
 - Local API documentation in `check_mk/plugin-api/html/`
+
+## CheckMK Color Class Constants
+
+The `cmk.graphing.v1.Color` class provides predefined color constants for use in graphing definitions. These constants ensure consistent color usage across CheckMK visualizations.
+
+### Available Color Constants
+
+The following color constants are available in the Color class:
+
+#### Red Colors
+- `Color.LIGHT_RED` - Light red shade
+- `Color.RED` - Standard red
+- `Color.DARK_RED` - Dark red shade
+
+#### Orange Colors  
+- `Color.LIGHT_ORANGE` - Light orange shade
+- `Color.ORANGE` - Standard orange
+- `Color.DARK_ORANGE` - Dark orange shade
+
+#### Yellow Colors
+- `Color.LIGHT_YELLOW` - Light yellow shade
+- `Color.YELLOW` - Standard yellow
+- `Color.DARK_YELLOW` - Dark yellow shade
+
+#### Green Colors
+- `Color.LIGHT_GREEN` - Light green shade
+- `Color.GREEN` - Standard green
+- `Color.DARK_GREEN` - Dark green shade
+
+#### Blue Colors
+- `Color.LIGHT_BLUE` - Light blue shade
+- `Color.BLUE` - Standard blue
+- `Color.DARK_BLUE` - Dark blue shade
+
+#### Cyan Colors
+- `Color.LIGHT_CYAN` - Light cyan shade
+- `Color.CYAN` - Standard cyan
+- `Color.DARK_CYAN` - Dark cyan shade
+
+#### Purple Colors
+- `Color.LIGHT_PURPLE` - Light purple shade
+- `Color.PURPLE` - Standard purple
+- `Color.DARK_PURPLE` - Dark purple shade
+
+#### Pink Colors
+- `Color.LIGHT_PINK` - Light pink shade
+- `Color.PINK` - Standard pink
+- `Color.DARK_PINK` - Dark pink shade
+
+#### Brown Colors
+- `Color.LIGHT_BROWN` - Light brown shade
+- `Color.BROWN` - Standard brown
+- `Color.DARK_BROWN` - Dark brown shade
+
+#### Gray Colors
+- `Color.LIGHT_GRAY` - Light gray shade
+- `Color.GRAY` - Standard gray
+- `Color.DARK_GRAY` - Dark gray shade
+
+#### Monochrome Colors
+- `Color.BLACK` - Black
+- `Color.WHITE` - White
+
+### Usage Example
+
+```python
+from cmk.graphing.v1 import Color
+from cmk.graphing.v1.metrics import Metric
+
+# Define a metric with a specific color
+metric_example = Metric(
+    name="example_metric",
+    title=Title("Example Metric"),
+    unit=unit_count,
+    color=Color.BLUE,  # Use predefined color constant
+)
+```
+
+### Important Notes
+
+- Always use the predefined Color constants rather than creating custom color values
+- Color constants like `Color.MAGENTA` and `Color.NAVY` do not exist and will cause errors
+- The Color class ensures consistent theming across CheckMK's graphing system
+- Colors are automatically adapted for different themes (light/dark mode)

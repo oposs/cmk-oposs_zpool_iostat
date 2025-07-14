@@ -25,13 +25,7 @@ This plugin provides detailed monitoring of ZFS storage pool I/O statistics incl
 
 1. Copy the plugin files to your CheckMK installation:
    ```bash
-   # Agent plugin
-   cp local/share/check_mk/agents/plugins/oposs_zpool_iostat \
-      /omd/sites/SITE/share/check_mk/agents/plugins/
-   
-   # Check plugin files
-   cp -r local/lib/python3/cmk_addons/ \
-      /omd/sites/SITE/lib/python3/cmk_addons/
+   cp -r local/* ~SITE/local   
    ```
 
 2. Reload CheckMK configuration:

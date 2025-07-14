@@ -10,7 +10,6 @@ from cmk.graphing.v1.metrics import (
     DecimalNotation,
     IECNotation,
     Metric,
-    StrictPrecision,
     Unit,
 )
 from cmk.graphing.v1.graphs import (
@@ -220,28 +219,28 @@ metric_scrubq_read_pend = Metric(
     name="scrubq_read_pend",
     title=Title("Scrub queue read pending"),
     unit=unit_count,
-    color=Color.LIGHT_MAGENTA,
+    color=Color.LIGHT_PURPLE,
 )
 
 metric_scrubq_read_activ = Metric(
     name="scrubq_read_activ",
     title=Title("Scrub queue read active"),
     unit=unit_count,
-    color=Color.MAGENTA,
+    color=Color.PURPLE,
 )
 
 metric_trimq_read_pend = Metric(
     name="trimq_read_pend",
     title=Title("Trim queue read pending"),
     unit=unit_count,
-    color=Color.LIGHT_NAVY,
+    color=Color.LIGHT_BLUE,
 )
 
 metric_trimq_read_activ = Metric(
     name="trimq_read_activ",
     title=Title("Trim queue read active"),
     unit=unit_count,
-    color=Color.NAVY,
+    color=Color.DARK_BLUE,
 )
 
 # Define graphs
@@ -261,12 +260,16 @@ graph_zpool_operations = Graph(
 graph_zpool_throughput = Bidirectional(
     name="zpool_throughput",
     title=Title("ZFS Pool Throughput"),
-    lower=[
-        "read_throughput",
-    ],
-    upper=[
-        "write_throughput",
-    ],
+    lower=Graph(
+        name="zpool_throughput_lower",
+        title=Title("Read Throughput"),
+        compound_lines=["read_throughput"],
+    ),
+    upper=Graph(
+        name="zpool_throughput_upper", 
+        title=Title("Write Throughput"),
+        compound_lines=["write_throughput"],
+    ),
 )
 
 graph_zpool_storage = Graph(
@@ -278,7 +281,7 @@ graph_zpool_storage = Graph(
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=None,
+        upper=1000000000000,  # 1TB default upper limit
     ),
 )
 
@@ -293,7 +296,7 @@ graph_zpool_wait_times = Graph(
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=None,
+        upper=1000,  # 1000ms upper limit
     ),
 )
 
@@ -310,7 +313,7 @@ graph_zpool_queue_wait_times = Graph(
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=None,
+        upper=500,  # 500ms upper limit for queue wait times
     ),
 )
 
@@ -329,7 +332,7 @@ graph_zpool_queue_depths = Graph(
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=None,
+        upper=100,  # 100 operations upper limit for queue depths
     ),
 )
 
@@ -344,7 +347,7 @@ graph_zpool_special_queues = Graph(
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=None,
+        upper=20,  # 20 operations upper limit for special queues
     ),
 )
 

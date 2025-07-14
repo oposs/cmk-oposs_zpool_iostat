@@ -24,19 +24,18 @@ def get_oposs_zpool_iostat_files(conf: Dict[str, Any]):
     Yields:
         Plugin and configuration objects for deployment
     """
-    if conf is None or not conf.get("enabled", True):
+    if conf is None:
         return
 
     # Get configuration values with defaults
     interval = conf.get("interval", 60)
     timeout = conf.get("timeout", 30)
-    iostat_interval = conf.get("iostat_interval", 10)
+    sampling_duration = conf.get("sampling_duration", 10)
     
     # Generate JSON configuration file for the agent
     config_content = json.dumps({
-        "enabled": True,
         "timeout": int(timeout),
-        "interval": int(iostat_interval),
+        "sampling_duration": int(sampling_duration),
     }, indent=2)
     
     # Deploy configuration file

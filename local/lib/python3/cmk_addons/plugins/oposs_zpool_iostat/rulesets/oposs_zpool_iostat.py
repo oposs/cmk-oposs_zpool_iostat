@@ -18,14 +18,14 @@ from cmk.rulesets.v1.form_specs import (
 )
 from cmk.rulesets.v1.rule_specs import (
     CheckParameters,
-    HostAndServiceCondition,
+    HostAndItemCondition,
     Topic,
 )
 
 def _parameter_form_oposs_zpool_iostat():
     """Configuration form for zpool iostat check parameters."""
     return Dictionary(
-        title=Title("OPOSS zpool iostat monitoring"),
+        title=Title("OPOSS zpool iostat Ruleset Configuration"),
         help_text=Help(
             "Configure thresholds and monitoring options for ZFS zpool I/O statistics. "
             "This check monitors pool I/O operations, throughput, latency, and storage utilization."
@@ -360,9 +360,9 @@ def _parameter_form_oposs_zpool_iostat():
 
 # Register the check parameters ruleset
 rule_spec_oposs_zpool_iostat = CheckParameters(
-    title=Title("OPOSS zpool iostat monitoring"),
+    title=Title("OPOSS zpool iostat Ruleset"),
     topic=Topic.STORAGE,
     name="oposs_zpool_iostat",
     parameter_form=_parameter_form_oposs_zpool_iostat,
-    condition=HostAndServiceCondition(service_name="ZPool I/O"),
+    condition=HostAndItemCondition(item_title=Title("ZPool name")),
 )
