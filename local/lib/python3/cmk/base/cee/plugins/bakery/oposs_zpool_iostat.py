@@ -28,7 +28,7 @@ def get_oposs_zpool_iostat_files(conf: Dict[str, Any]):
         return
 
     # Get configuration values with defaults
-    interval = conf.get("interval", 60)
+    interval = int(conf.get("interval", 60))
     timeout = conf.get("timeout", 30)
     sampling_duration = conf.get("sampling_duration", 10)
     
