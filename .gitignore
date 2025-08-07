@@ -3,6 +3,8 @@
 !/LICENSE
 !/*.md
 !/.gitignore
+!/.github
+!/.mkp-builder.ini
 *~
 *.swp
 *.bak

@@ -14,12 +14,39 @@ from cmk.agent_based.v2 import (
     State,
     Metric,
     render,
-    check_levels,
 )
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 import json
 
 # ZFS iostat data is now parsed from JSON format by the agent
+
+def _get_levels_from_params(params: Mapping[str, Any], param_key: str) -> Optional[Tuple[float, float]]:
+    """
+    Extract levels from parameters, handling both tuple and SimpleLevels dictionary formats.
+    
+    Args:
+        params: Check parameters from ruleset
+        param_key: Key to look for in params
+        
+    Returns:
+        Tuple of (warning, critical) levels or None if not found/invalid
+    """
+    if param_key not in params:
+        return None
+    
+    levels = params[param_key]
+    
+    # Handle tuple format (old CheckMK or direct tuple)
+    if isinstance(levels, tuple) and len(levels) == 2:
+        return levels
+    
+    # Handle dict format (new CheckMK 2.3 SimpleLevels)
+    if isinstance(levels, dict) and "levels_upper" in levels:
+        levels_upper = levels["levels_upper"]
+        if isinstance(levels_upper, tuple) and len(levels_upper) == 2:
+            return levels_upper
+    
+    return None
 
 def parse_oposs_zpool_iostat(string_table: List[List[str]]) -> Dict[str, Any]:
     """
@@ -143,63 +170,62 @@ def check_oposs_zpool_iostat(
         used_percent = (alloc / total) * 100
         
         # Check storage levels if configured
-        if params.get('storage_levels'):
-            yield from check_levels(
-                value=used_percent,
-                metric_name="storage_used_percent",
-                levels_upper=params['storage_levels'],
-                render_func=render.percent,
-                label="Storage utilization"
-            )
+        storage_levels = _get_levels_from_params(params, 'storage_levels')
+        if storage_levels:
+            warn, crit = storage_levels
+            if used_percent >= crit:
+                yield Result(state=State.CRIT, summary=f"Storage utilization: {used_percent:.1f}% (critical at {crit:.1f}%)")
+            elif used_percent >= warn:
+                yield Result(state=State.WARN, summary=f"Storage utilization: {used_percent:.1f}% (warning at {warn:.1f}%)")
+            else:
+                yield Result(state=State.OK, summary=f"Storage utilization: {used_percent:.1f}%")
         else:
-            # Always yield storage metrics even if no levels configured
-            yield Metric("storage_used_percent", used_percent)
+            yield Result(state=State.OK, summary=f"Storage utilization: {used_percent:.1f}%")
+        
+        # Always yield storage metrics
+        yield Metric("storage_used_percent", used_percent)
     
     # I/O Operation metrics and levels
     yield Metric("read_ops", read_ops)
     yield Metric("write_ops", write_ops)
     
     # Check I/O operation levels if configured
-    if params.get('read_ops_levels'):
-        yield from check_levels(
-            value=read_ops,
-            metric_name="read_ops_rate",
-            levels_upper=params['read_ops_levels'],
-            render_func=lambda x: f"{x:.1f}/s",
-            label="Read operations"
-        )
+    read_ops_levels = _get_levels_from_params(params, 'read_ops_levels')
+    if read_ops_levels:
+        warn, crit = read_ops_levels
+        if read_ops >= crit:
+            yield Result(state=State.CRIT, summary=f"Read operations: {read_ops:.1f}/s (critical at {crit:.1f}/s)")
+        elif read_ops >= warn:
+            yield Result(state=State.WARN, summary=f"Read operations: {read_ops:.1f}/s (warning at {warn:.1f}/s)")
         
-    if params.get('write_ops_levels'):
-        yield from check_levels(
-            value=write_ops,
-            metric_name="write_ops_rate", 
-            levels_upper=params['write_ops_levels'],
-            render_func=lambda x: f"{x:.1f}/s",
-            label="Write operations"
-        )
+    write_ops_levels = _get_levels_from_params(params, 'write_ops_levels')
+    if write_ops_levels:
+        warn, crit = write_ops_levels
+        if write_ops >= crit:
+            yield Result(state=State.CRIT, summary=f"Write operations: {write_ops:.1f}/s (critical at {crit:.1f}/s)")
+        elif write_ops >= warn:
+            yield Result(state=State.WARN, summary=f"Write operations: {write_ops:.1f}/s (warning at {warn:.1f}/s)")
     
     # Throughput metrics and levels
     yield Metric("read_throughput", read_bytes)
     yield Metric("write_throughput", write_bytes)
     
     # Check throughput levels if configured
-    if params.get('read_throughput_levels'):
-        yield from check_levels(
-            value=read_bytes,
-            metric_name="read_throughput_rate",
-            levels_upper=params['read_throughput_levels'],
-            render_func=render.bytes,
-            label="Read throughput"
-        )
+    read_throughput_levels = _get_levels_from_params(params, 'read_throughput_levels')
+    if read_throughput_levels:
+        warn, crit = read_throughput_levels
+        if read_bytes >= crit:
+            yield Result(state=State.CRIT, summary=f"Read throughput: {render.bytes(read_bytes)} (critical at {render.bytes(crit)})")
+        elif read_bytes >= warn:
+            yield Result(state=State.WARN, summary=f"Read throughput: {render.bytes(read_bytes)} (warning at {render.bytes(warn)})")
         
-    if params.get('write_throughput_levels'):
-        yield from check_levels(
-            value=write_bytes,
-            metric_name="write_throughput_rate",
-            levels_upper=params['write_throughput_levels'],
-            render_func=render.bytes,
-            label="Write throughput"
-        )
+    write_throughput_levels = _get_levels_from_params(params, 'write_throughput_levels')
+    if write_throughput_levels:
+        warn, crit = write_throughput_levels
+        if write_bytes >= crit:
+            yield Result(state=State.CRIT, summary=f"Write throughput: {render.bytes(write_bytes)} (critical at {render.bytes(crit)})")
+        elif write_bytes >= warn:
+            yield Result(state=State.WARN, summary=f"Write throughput: {render.bytes(write_bytes)} (warning at {render.bytes(warn)})")
     
     # Storage metrics
     yield Metric("allocated", alloc)
@@ -213,23 +239,21 @@ def check_oposs_zpool_iostat(
     yield Metric("write_wait", write_wait)
     
     # Check wait time levels if configured
-    if params.get('read_wait_levels') and read_wait > 0:
-        yield from check_levels(
-            value=read_wait,
-            metric_name="read_wait_time",
-            levels_upper=params['read_wait_levels'],
-            render_func=lambda x: f"{x:.2f}ms",
-            label="Read wait time"
-        )
+    read_wait_levels = _get_levels_from_params(params, 'read_wait_levels')
+    if read_wait_levels and read_wait > 0:
+        warn, crit = read_wait_levels
+        if read_wait >= crit:
+            yield Result(state=State.CRIT, summary=f"Read wait time: {read_wait:.2f}ms (critical at {crit:.2f}ms)")
+        elif read_wait >= warn:
+            yield Result(state=State.WARN, summary=f"Read wait time: {read_wait:.2f}ms (warning at {warn:.2f}ms)")
         
-    if params.get('write_wait_levels') and write_wait > 0:
-        yield from check_levels(
-            value=write_wait,
-            metric_name="write_wait_time",
-            levels_upper=params['write_wait_levels'],
-            render_func=lambda x: f"{x:.2f}ms",
-            label="Write wait time"
-        )
+    write_wait_levels = _get_levels_from_params(params, 'write_wait_levels')
+    if write_wait_levels and write_wait > 0:
+        warn, crit = write_wait_levels
+        if write_wait >= crit:
+            yield Result(state=State.CRIT, summary=f"Write wait time: {write_wait:.2f}ms (critical at {crit:.2f}ms)")
+        elif write_wait >= warn:
+            yield Result(state=State.WARN, summary=f"Write wait time: {write_wait:.2f}ms (warning at {warn:.2f}ms)")
     
     # Disk-level wait times
     disk_read_wait = pool_data.get('disk_read_wait', 0)
@@ -239,16 +263,15 @@ def check_oposs_zpool_iostat(
     yield Metric("disk_write_wait", disk_write_wait)
     
     # Check disk wait levels if configured
-    if params.get('disk_wait_levels'):
+    disk_wait_levels = _get_levels_from_params(params, 'disk_wait_levels')
+    if disk_wait_levels:
         max_disk_wait = max(disk_read_wait, disk_write_wait)
         if max_disk_wait > 0:
-            yield from check_levels(
-                value=max_disk_wait,
-                metric_name="disk_wait_time",
-                levels_upper=params['disk_wait_levels'],
-                render_func=lambda x: f"{x:.2f}ms",
-                label="Disk wait time"
-            )
+            warn, crit = disk_wait_levels
+            if max_disk_wait >= crit:
+                yield Result(state=State.CRIT, summary=f"Disk wait time: {max_disk_wait:.2f}ms (critical at {crit:.2f}ms)")
+            elif max_disk_wait >= warn:
+                yield Result(state=State.WARN, summary=f"Disk wait time: {max_disk_wait:.2f}ms (warning at {warn:.2f}ms)")
     
     # Individual queue wait time metrics
     queue_wait_metrics = [
@@ -266,14 +289,13 @@ def check_oposs_zpool_iostat(
             yield Metric(metric_name, value)
             
             # Check individual levels if configured
-            if params.get(param_name):
-                yield from check_levels(
-                    value=value,
-                    metric_name=f"{metric_name}_level",
-                    levels_upper=params[param_name],
-                    render_func=lambda x: f"{x:.2f}ms",
-                    label=f"{metric_name.replace('_', ' ').title()}"
-                )
+            levels = _get_levels_from_params(params, param_name)
+            if levels:
+                warn, crit = levels
+                if value >= crit:
+                    yield Result(state=State.CRIT, summary=f"{metric_name.replace('_', ' ').title()}: {value:.2f}ms (critical at {crit:.2f}ms)")
+                elif value >= warn:
+                    yield Result(state=State.WARN, summary=f"{metric_name.replace('_', ' ').title()}: {value:.2f}ms (warning at {warn:.2f}ms)")
     
     # Individual queue depth metrics
     queue_depth_metrics = [
@@ -297,14 +319,13 @@ def check_oposs_zpool_iostat(
             yield Metric(metric_name, value)
             
             # Check individual levels if configured
-            if params.get(param_name):
-                yield from check_levels(
-                    value=value,
-                    metric_name=f"{metric_name}_level",
-                    levels_upper=params[param_name],
-                    render_func=lambda x: f"{x:.0f}",
-                    label=f"{metric_name.replace('_', ' ').title()}"
-                )
+            levels = _get_levels_from_params(params, param_name)
+            if levels:
+                warn, crit = levels
+                if value >= crit:
+                    yield Result(state=State.CRIT, summary=f"{metric_name.replace('_', ' ').title()}: {value:.0f} (critical at {crit:.0f})")
+                elif value >= warn:
+                    yield Result(state=State.WARN, summary=f"{metric_name.replace('_', ' ').title()}: {value:.0f} (warning at {warn:.0f})")
 
 # Create the check plugin
 check_plugin_oposs_zpool_iostat = CheckPlugin(
