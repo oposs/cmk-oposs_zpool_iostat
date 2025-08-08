@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
-
+- Use proper v2 check_levels instead of doing it manually
 ## 0.1.3 - 2025-08-07
 ### Fixed
 - Interval must be an integer
