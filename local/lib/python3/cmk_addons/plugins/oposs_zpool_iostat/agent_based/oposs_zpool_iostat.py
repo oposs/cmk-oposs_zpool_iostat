@@ -33,6 +33,36 @@ def _render_count(value: float) -> str:
     """Render value as count with no decimal places."""
     return f"{value:.0f}"
 
+def _extract_levels(levels_param):
+    """
+    Extract levels from parameter in various formats.
+    
+    SimpleLevels produces:
+    - ("fixed", (warn, crit)) - fixed levels
+    - ("no_levels", None) - no levels configured
+    - None - when not configured
+    
+    Args:
+        levels_param: Levels parameter from ruleset
+        
+    Returns:
+        Properly formatted levels for check_levels() or None
+    """
+    if not levels_param:
+        return None
+    
+    # If it's already in the correct format for check_levels
+    if isinstance(levels_param, tuple) and len(levels_param) == 2:
+        # Check if it's already ("fixed", (warn, crit)) or ("no_levels", None) format
+        if levels_param[0] in ("fixed", "no_levels", "predictive"):
+            return levels_param
+        # If both elements are numbers, it's a plain tuple (warn, crit) - wrap it
+        if isinstance(levels_param[0], (int, float)) and isinstance(levels_param[1], (int, float)):
+            return ("fixed", levels_param)
+    
+    # Return as-is if we can't determine the format
+    return levels_param
+
 
 def parse_oposs_zpool_iostat(string_table: List[List[str]]) -> Dict[str, Any]:
     """
@@ -156,11 +186,7 @@ def check_oposs_zpool_iostat(
         used_percent = (alloc / total) * 100
         
         # Check storage levels using check_levels function
-        storage_levels = params.get('storage_levels')
-        if storage_levels and isinstance(storage_levels, dict) and 'levels_upper' in storage_levels:
-            levels_upper = ("fixed", storage_levels['levels_upper'])
-        else:
-            levels_upper = None
+        levels_upper = _extract_levels(params.get('storage_levels'))
             
         yield from check_levels(
             used_percent,
@@ -172,11 +198,11 @@ def check_oposs_zpool_iostat(
         )
     
     # I/O Operation metrics and levels
-    read_ops_levels = params.get('read_ops_levels')
-    if read_ops_levels and isinstance(read_ops_levels, dict) and 'levels_upper' in read_ops_levels:
+    read_ops_levels = _extract_levels(params.get('read_ops_levels'))
+    if read_ops_levels:
         yield from check_levels(
             read_ops,
-            levels_upper=("fixed", read_ops_levels['levels_upper']),
+            levels_upper=read_ops_levels,
             metric_name="read_ops",
             label="Read operations",
             render_func=_render_operations_per_second,
@@ -184,11 +210,11 @@ def check_oposs_zpool_iostat(
     else:
         yield Metric("read_ops", read_ops)
     
-    write_ops_levels = params.get('write_ops_levels')
-    if write_ops_levels and isinstance(write_ops_levels, dict) and 'levels_upper' in write_ops_levels:
+    write_ops_levels = _extract_levels(params.get('write_ops_levels'))
+    if write_ops_levels:
         yield from check_levels(
             write_ops,
-            levels_upper=("fixed", write_ops_levels['levels_upper']),
+            levels_upper=write_ops_levels,
             metric_name="write_ops", 
             label="Write operations",
             render_func=_render_operations_per_second,
@@ -197,11 +223,11 @@ def check_oposs_zpool_iostat(
         yield Metric("write_ops", write_ops)
     
     # Throughput metrics and levels
-    read_throughput_levels = params.get('read_throughput_levels')
-    if read_throughput_levels and isinstance(read_throughput_levels, dict) and 'levels_upper' in read_throughput_levels:
+    read_throughput_levels = _extract_levels(params.get('read_throughput_levels'))
+    if read_throughput_levels:
         yield from check_levels(
             read_bytes,
-            levels_upper=("fixed", read_throughput_levels['levels_upper']),
+            levels_upper=read_throughput_levels,
             metric_name="read_throughput",
             label="Read throughput",
             render_func=render.bytes,
@@ -209,11 +235,11 @@ def check_oposs_zpool_iostat(
     else:
         yield Metric("read_throughput", read_bytes)
         
-    write_throughput_levels = params.get('write_throughput_levels')
-    if write_throughput_levels and isinstance(write_throughput_levels, dict) and 'levels_upper' in write_throughput_levels:
+    write_throughput_levels = _extract_levels(params.get('write_throughput_levels'))
+    if write_throughput_levels:
         yield from check_levels(
             write_bytes,
-            levels_upper=("fixed", write_throughput_levels['levels_upper']),
+            levels_upper=write_throughput_levels,
             metric_name="write_throughput",
             label="Write throughput",
             render_func=render.bytes,
@@ -229,11 +255,11 @@ def check_oposs_zpool_iostat(
     read_wait = pool_data.get('read_wait', 0)
     write_wait = pool_data.get('write_wait', 0)
     
-    read_wait_levels = params.get('read_wait_levels')
-    if read_wait_levels and isinstance(read_wait_levels, dict) and 'levels_upper' in read_wait_levels and read_wait > 0:
+    read_wait_levels = _extract_levels(params.get('read_wait_levels'))
+    if read_wait_levels and read_wait > 0:
         yield from check_levels(
             read_wait,
-            levels_upper=("fixed", read_wait_levels['levels_upper']),
+            levels_upper=read_wait_levels,
             metric_name="read_wait",
             label="Read wait time",
             render_func=_render_milliseconds,
@@ -241,11 +267,11 @@ def check_oposs_zpool_iostat(
     else:
         yield Metric("read_wait", read_wait)
         
-    write_wait_levels = params.get('write_wait_levels')
-    if write_wait_levels and isinstance(write_wait_levels, dict) and 'levels_upper' in write_wait_levels and write_wait > 0:
+    write_wait_levels = _extract_levels(params.get('write_wait_levels'))
+    if write_wait_levels and write_wait > 0:
         yield from check_levels(
             write_wait,
-            levels_upper=("fixed", write_wait_levels['levels_upper']),
+            levels_upper=write_wait_levels,
             metric_name="write_wait",
             label="Write wait time",
             render_func=_render_milliseconds,
@@ -261,13 +287,13 @@ def check_oposs_zpool_iostat(
     yield Metric("disk_write_wait", disk_write_wait)
     
     # Check disk wait levels if configured
-    disk_wait_levels = params.get('disk_wait_levels')
-    if disk_wait_levels and isinstance(disk_wait_levels, dict) and 'levels_upper' in disk_wait_levels:
+    disk_wait_levels = _extract_levels(params.get('disk_wait_levels'))
+    if disk_wait_levels:
         max_disk_wait = max(disk_read_wait, disk_write_wait)
         if max_disk_wait > 0:
             yield from check_levels(
                 max_disk_wait,
-                levels_upper=("fixed", disk_wait_levels['levels_upper']),
+                levels_upper=disk_wait_levels,
                 metric_name="disk_wait_max",
                 label="Disk wait time",
                 render_func=_render_milliseconds,
@@ -286,11 +312,11 @@ def check_oposs_zpool_iostat(
     for metric_name, param_name in queue_wait_metrics:
         value = pool_data.get(metric_name, 0)
         if value > 0:
-            levels_param = params.get(param_name)
-            if levels_param and isinstance(levels_param, dict) and 'levels_upper' in levels_param:
+            levels_param = _extract_levels(params.get(param_name))
+            if levels_param:
                 yield from check_levels(
                     value,
-                    levels_upper=("fixed", levels_param['levels_upper']),
+                    levels_upper=levels_param,
                     metric_name=metric_name,
                     label=metric_name.replace('_', ' ').title(),
                     render_func=_render_milliseconds,
@@ -317,11 +343,11 @@ def check_oposs_zpool_iostat(
     for metric_name, param_name in queue_depth_metrics:
         value = pool_data.get(metric_name, 0)
         if value > 0:
-            levels_param = params.get(param_name)
-            if levels_param and isinstance(levels_param, dict) and 'levels_upper' in levels_param:
+            levels_param = _extract_levels(params.get(param_name))
+            if levels_param:
                 yield from check_levels(
                     value,
-                    levels_upper=("fixed", levels_param['levels_upper']),
+                    levels_upper=levels_param,
                     metric_name=metric_name,
                     label=metric_name.replace('_', ' ').title(),
                     render_func=_render_count,
