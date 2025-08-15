@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 # Configuration file path using MK_CONFDIR environment variable
 CONFIG_FILE = os.path.join(os.environ.get("MK_CONFDIR", "/etc/check_mk"), "oposs_zpool_iostat.json")
@@ -24,19 +24,155 @@ def get_config() -> Dict:
     except (json.JSONDecodeError, IOError):
         return {}
 
-def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional[str]:
+def parse_headers(group_header: str, sub_header: str) -> List[str]:
     """
-    Run zpool iostat command and return output.
+    Parse zpool iostat headers to build field names dynamically.
+    
+    The headers come in two rows:
+    - Group headers (capacity, operations, bandwidth, etc.)
+    - Sub headers (alloc, free, read, write, pend, activ, wait, etc.)
+    
+    Strategy: 
+    1. Assign each sub-header to a group based on position
+       (a sub-header belongs to group N if it ends before group N+1 starts)
+    2. Build full descriptive names (e.g., capacity_alloc, operations_read)
+    3. Map to backward-compatible names using a translation table
+    
+    This approach handles new or missing columns gracefully - unknown 
+    combinations will use the full descriptive name.
+    
+    Args:
+        group_header: First header line with group names
+        sub_header: Second header line with sub-field names
+        
+    Returns:
+        List of field names with backward-compatible naming
+    """
+    import re
+    
+    # Mapping from full descriptive names to backward-compatible names
+    # This maintains compatibility with existing check plugins and metrics
+    name_mapping = {
+        # Pool name
+        'pool': 'pool',
+        
+        # Capacity metrics - keep as-is
+        'capacity_alloc': 'alloc',
+        'capacity_free': 'free',
+        
+        # Operations metrics
+        'operations_read': 'read_ops',
+        'operations_write': 'write_ops',
+        
+        # Bandwidth metrics
+        'bandwidth_read': 'read_bytes',
+        'bandwidth_write': 'write_bytes',
+        
+        # Wait time metrics
+        'total_wait_read': 'read_wait',
+        'total_wait_write': 'write_wait',
+        'disk_wait_read': 'disk_read_wait',
+        'disk_wait_write': 'disk_write_wait',
+        'syncq_wait_read': 'syncq_read_wait',
+        'syncq_wait_write': 'syncq_write_wait',
+        'asyncq_wait_read': 'asyncq_read_wait',
+        'asyncq_wait_write': 'asyncq_write_wait',
+        # Note: Only include mappings where we need to rename fields
+        # Identity mappings (same key and value) are unnecessary
+    }
+    
+    # Find all group header positions
+    group_positions = []
+    for match in re.finditer(r'\S+', group_header):
+        group_positions.append({
+            'start': match.start(),
+            'text': match.group()
+        })
+    
+    # Find all sub-header positions
+    sub_positions = []
+    for match in re.finditer(r'\S+', sub_header):
+        sub_positions.append({
+            'start': match.start(),
+            'end': match.end(),
+            'text': match.group()
+        })
+    
+    field_names = []
+    
+    # Process each sub-header
+    for sub in sub_positions:
+        sub_text = sub['text']
+        sub_end = sub['end']
+        
+        # Special case: first field is always 'pool'
+        if sub_text == 'pool':
+            field_names.append('pool')
+            continue
+        
+        # Find which group this sub-header belongs to
+        # It belongs to group N if its end is before the start of group N+1
+        group_text = None
+        for i, group in enumerate(group_positions):
+            # Check if there's a next group
+            if i + 1 < len(group_positions):
+                next_group_start = group_positions[i + 1]['start']
+                if sub_end <= next_group_start:
+                    group_text = group['text']
+                    break
+            else:
+                # This is the last group, so any remaining sub-headers belong to it
+                group_text = group['text']
+        
+        # Build full descriptive name
+        if not group_text:
+            # No group header found, use sub-header as-is
+            full_name = sub_text
+        else:
+            # Combine group and sub-header
+            full_name = f"{group_text}_{sub_text}"
+        
+        # Map to backward-compatible name or keep the full name if not in mapping
+        field_name = name_mapping.get(full_name, full_name)
+        field_names.append(field_name)
+    
+    return field_names
+
+def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional[Tuple[List[str], str]]:
+    """
+    Run zpool iostat command and return headers and data output.
     
     Args:
         timeout: Command timeout in seconds
         sampling_duration: How long iostat collects data before reporting
         
     Returns:
-        Raw iostat output or None on error
+        Tuple of (field_names, data_output) or None on error
     """
     try:
-        # Use -H for scripting, -y for omit header, -l for latency, -p for parsable, -q for queue stats
+        # First run without -H to get headers
+        cmd_headers = ['/sbin/zpool', 'iostat', '-ylpq', '1', '1']
+        result_headers = subprocess.run(
+            cmd_headers,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        if result_headers.returncode != 0:
+            print(f"ERROR: zpool iostat (headers) failed with code {result_headers.returncode}: {result_headers.stderr}", file=sys.stderr)
+            return None
+        
+        # Parse headers to build field names
+        # Don't strip() as it removes leading spaces needed for position calculation
+        header_lines = result_headers.stdout.split('\n')
+        if len(header_lines) < 2:
+            print("ERROR: Unable to parse zpool iostat headers", file=sys.stderr)
+            return None
+        
+        field_names = parse_headers(header_lines[0], header_lines[1])
+        
+        # Now run with -H for actual data
         cmd = ['/sbin/zpool', 'iostat', '-Hylpq', str(sampling_duration), '1']
         
         result = subprocess.run(
@@ -50,7 +186,7 @@ def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional
             print(f"ERROR: zpool iostat failed with code {result.returncode}: {result.stderr}", file=sys.stderr)
             return None
             
-        return result.stdout.strip()
+        return field_names, result.stdout.strip()
         
     except subprocess.TimeoutExpired:
         print(f"ERROR: zpool iostat command timed out after {timeout} seconds", file=sys.stderr)
@@ -62,28 +198,18 @@ def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional
         print(f"ERROR: Unexpected error running zpool iostat: {e}", file=sys.stderr)
         return None
 
-def parse_iostat_output(output: str) -> Dict[str, Dict]:
+def parse_iostat_output(output: str, field_names: List[str]) -> Dict[str, Dict]:
     """
     Parse zpool iostat output into structured JSON data.
     
     Args:
         output: Raw iostat output
+        field_names: List of field names from parsed headers
         
     Returns:
         Dictionary with pool names as keys and structured data as values
     """
     pools = {}
-    
-    # ZFS iostat field mapping for zpool iostat -Hylpq output
-    field_names = [
-        'pool', 'alloc', 'free', 'read_ops', 'write_ops', 'read_bytes', 'write_bytes',
-        'read_wait', 'write_wait', 'disk_read_wait', 'disk_write_wait',
-        'syncq_read_wait', 'syncq_write_wait', 'asyncq_read_wait', 'asyncq_write_wait',
-        'scrub_wait', 'trim_wait', 'syncq_read_pend', 'syncq_read_activ',
-        'syncq_write_pend', 'syncq_write_activ', 'asyncq_read_pend', 'asyncq_read_activ',
-        'asyncq_write_pend', 'asyncq_write_activ', 'scrubq_read_pend', 'scrubq_read_activ',
-        'trimq_read_pend', 'trimq_read_activ'
-    ]
     
     for line in output.split('\n'):
         if not line.strip():
@@ -134,16 +260,18 @@ def main():
     # Always start with section header - using JSON encoding with custom separator
     print("<<<oposs_zpool_iostat:sep(124)>>>")
     
-    # Get iostat data
-    iostat_output = run_zpool_iostat(timeout, sampling_duration)
-    if iostat_output is None:
+    # Get iostat data with headers
+    result = run_zpool_iostat(timeout, sampling_duration)
+    if result is None:
         # Output error state for monitoring
         print("ERROR|No data available", file=sys.stderr)
         sys.exit(1)
     
+    field_names, iostat_output = result
+    
     # Parse and output structured data as JSON
     try:
-        parsed_pools = parse_iostat_output(iostat_output)
+        parsed_pools = parse_iostat_output(iostat_output, field_names)
         
         if not parsed_pools:
             print("ERROR|No pools found", file=sys.stderr)

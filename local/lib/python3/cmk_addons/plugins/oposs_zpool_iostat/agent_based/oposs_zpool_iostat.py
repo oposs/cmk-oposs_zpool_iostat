@@ -2,6 +2,12 @@
 """
 CheckMK Check Plugin for OPOSS zpool iostat monitoring
 Processes I/O statistics from zpool iostat command using CheckMK 2.3 v2 API
+
+Note: ZFS reports wait times in nanoseconds. This plugin converts them to seconds
+for internal storage and graphing. Thresholds are configured in milliseconds for
+user convenience and converted to seconds internally for comparison.
+
+Time-based metrics are stored with _s suffix to indicate seconds unit.
 """
 
 from cmk.agent_based.v2 import (
@@ -26,8 +32,10 @@ def _render_operations_per_second(value: float) -> str:
     return f"{value:.1f}/s"
 
 def _render_milliseconds(value: float) -> str:
-    """Render value as milliseconds with 2 decimal places."""
-    return f"{value:.2f}ms"
+    """Render value as milliseconds with 2 decimal places.
+    Input value is in seconds, convert to milliseconds for display.
+    """
+    return f"{value * 1000:.2f}ms"
 
 def _render_count(value: float) -> str:
     """Render value as count with no decimal places."""
@@ -62,6 +70,69 @@ def _extract_levels(levels_param):
     
     # Return as-is if we can't determine the format
     return levels_param
+
+def _convert_ms_levels_to_seconds(levels_param):
+    """
+    Convert millisecond levels to seconds for wait time thresholds.
+    
+    Args:
+        levels_param: Levels parameter with millisecond values
+        
+    Returns:
+        Levels parameter with values converted to seconds, or None
+    """
+    if not levels_param:
+        return None
+    
+    if isinstance(levels_param, tuple) and levels_param[0] == "fixed" and levels_param[1]:
+        warn, crit = levels_param[1]
+        return ("fixed", (warn / 1000, crit / 1000))
+    
+    # Return as-is for other formats (predictive, no_levels, etc.)
+    return levels_param
+
+def _check_wait_time_metric(
+    value_ns: Optional[float],
+    levels_param: Any,
+    metric_name: str,
+    label: str
+) -> CheckResult:
+    """
+    Helper function to consistently handle wait time metrics.
+    
+    Args:
+        value_ns: Raw value in nanoseconds from zpool iostat (None if metric doesn't exist)
+        levels_param: Levels parameter from ruleset (in milliseconds)
+        metric_name: Name for the metric (will have _s suffix added)
+        label: Human-readable label for check output
+        
+    Yields:
+        Check results and metrics
+    """
+    # Handle missing metrics
+    if value_ns is None:
+        yield Metric(metric_name + "_s", float('nan'))
+        return
+    
+    # Convert from nanoseconds to seconds
+    value_s = value_ns / 1e9 if value_ns != 0 else 0
+    
+    # Extract and convert levels if configured
+    levels = _extract_levels(levels_param)
+    
+    if levels:
+        # Convert millisecond thresholds to seconds
+        levels_in_seconds = _convert_ms_levels_to_seconds(levels)
+        yield from check_levels(
+            value_s,
+            levels_upper=levels_in_seconds,
+            metric_name=metric_name + "_s",
+            label=label,
+            render_func=_render_milliseconds,
+        )
+    else:
+        # Always yield metric for graph display
+        yield Metric(metric_name + "_s", value_s)
 
 
 def parse_oposs_zpool_iostat(string_table: List[List[str]]) -> Dict[str, Any]:
@@ -252,77 +323,71 @@ def check_oposs_zpool_iostat(
     yield Metric("free", free)
     
     # Wait time metrics and levels
-    read_wait = pool_data.get('read_wait', 0)
-    write_wait = pool_data.get('write_wait', 0)
+    yield from _check_wait_time_metric(
+        pool_data.get('read_wait'),
+        params.get('read_wait_levels'),
+        "read_wait",
+        "Read wait time"
+    )
     
-    read_wait_levels = _extract_levels(params.get('read_wait_levels'))
-    if read_wait_levels and read_wait > 0:
-        yield from check_levels(
-            read_wait,
-            levels_upper=read_wait_levels,
-            metric_name="read_wait",
-            label="Read wait time",
-            render_func=_render_milliseconds,
-        )
-    else:
-        yield Metric("read_wait", read_wait)
-        
-    write_wait_levels = _extract_levels(params.get('write_wait_levels'))
-    if write_wait_levels and write_wait > 0:
-        yield from check_levels(
-            write_wait,
-            levels_upper=write_wait_levels,
-            metric_name="write_wait",
-            label="Write wait time",
-            render_func=_render_milliseconds,
-        )
-    else:
-        yield Metric("write_wait", write_wait)
+    yield from _check_wait_time_metric(
+        pool_data.get('write_wait'),
+        params.get('write_wait_levels'),
+        "write_wait",
+        "Write wait time"
+    )
     
     # Disk-level wait times
-    disk_read_wait = pool_data.get('disk_read_wait', 0)
-    disk_write_wait = pool_data.get('disk_write_wait', 0)
+    yield from _check_wait_time_metric(
+        pool_data.get('disk_read_wait'),
+        None,  # No individual levels for disk_read_wait
+        "disk_read_wait",
+        "Disk read wait time"
+    )
     
-    yield Metric("disk_read_wait", disk_read_wait)
-    yield Metric("disk_write_wait", disk_write_wait)
+    yield from _check_wait_time_metric(
+        pool_data.get('disk_write_wait'),
+        None,  # No individual levels for disk_write_wait
+        "disk_write_wait",
+        "Disk write wait time"
+    )
     
-    # Check disk wait levels if configured
+    # Check combined disk wait levels if configured
     disk_wait_levels = _extract_levels(params.get('disk_wait_levels'))
     if disk_wait_levels:
-        max_disk_wait = max(disk_read_wait, disk_write_wait)
-        if max_disk_wait > 0:
-            yield from check_levels(
-                max_disk_wait,
-                levels_upper=disk_wait_levels,
-                metric_name="disk_wait_max",
-                label="Disk wait time",
-                render_func=_render_milliseconds,
-            )
+        disk_read_wait_ns = pool_data.get('disk_read_wait')
+        disk_write_wait_ns = pool_data.get('disk_write_wait')
+        
+        # Only compute max if both values exist
+        if disk_read_wait_ns is not None and disk_write_wait_ns is not None:
+            max_disk_wait_ns = max(disk_read_wait_ns, disk_write_wait_ns)
+            if max_disk_wait_ns > 0:
+                # Use helper function for consistent handling
+                yield from _check_wait_time_metric(
+                    max_disk_wait_ns,
+                    params.get('disk_wait_levels'),
+                    "disk_wait_max",
+                    "Disk wait time"
+                )
     
     # Individual queue wait time metrics
     queue_wait_metrics = [
-        ('syncq_read_wait', 'syncq_read_wait_levels'),
-        ('syncq_write_wait', 'syncq_write_wait_levels'),
-        ('asyncq_read_wait', 'asyncq_read_wait_levels'),
-        ('asyncq_write_wait', 'asyncq_write_wait_levels'),
-        ('scrub_wait', 'scrub_wait_levels'),
-        ('trim_wait', 'trim_wait_levels')
+        ('syncq_read_wait', 'syncq_read_wait_levels', 'Sync Queue Read Wait'),
+        ('syncq_write_wait', 'syncq_write_wait_levels', 'Sync Queue Write Wait'),
+        ('asyncq_read_wait', 'asyncq_read_wait_levels', 'Async Queue Read Wait'),
+        ('asyncq_write_wait', 'asyncq_write_wait_levels', 'Async Queue Write Wait'),
+        ('scrub_wait', 'scrub_wait_levels', 'Scrub Wait'),
+        ('trim_wait', 'trim_wait_levels', 'Trim Wait'),
+        ('rebuild_wait', 'rebuild_wait_levels', 'Rebuild Wait')
     ]
     
-    for metric_name, param_name in queue_wait_metrics:
-        value = pool_data.get(metric_name, 0)
-        if value > 0:
-            levels_param = _extract_levels(params.get(param_name))
-            if levels_param:
-                yield from check_levels(
-                    value,
-                    levels_upper=levels_param,
-                    metric_name=metric_name,
-                    label=metric_name.replace('_', ' ').title(),
-                    render_func=_render_milliseconds,
-                )
-            else:
-                yield Metric(metric_name, value)
+    for metric_name, param_name, label in queue_wait_metrics:
+        yield from _check_wait_time_metric(
+            pool_data.get(metric_name),
+            params.get(param_name),
+            metric_name,
+            label
+        )
     
     # Individual queue depth metrics
     queue_depth_metrics = [
@@ -336,24 +401,31 @@ def check_oposs_zpool_iostat(
         ('asyncq_write_activ', 'asyncq_write_activ_levels'),
         ('scrubq_read_pend', 'scrubq_read_pend_levels'),
         ('scrubq_read_activ', 'scrubq_read_activ_levels'),
-        ('trimq_read_pend', 'trimq_read_pend_levels'),
-        ('trimq_read_activ', 'trimq_read_activ_levels')
+        ('trimq_write_pend', 'trimq_write_pend_levels'),
+        ('trimq_write_activ', 'trimq_write_activ_levels'),
+        ('rebuildq_write_pend', 'rebuildq_write_pend_levels'),
+        ('rebuildq_write_activ', 'rebuildq_write_activ_levels')
     ]
     
     for metric_name, param_name in queue_depth_metrics:
-        value = pool_data.get(metric_name, 0)
-        if value > 0:
-            levels_param = _extract_levels(params.get(param_name))
-            if levels_param:
-                yield from check_levels(
-                    value,
-                    levels_upper=levels_param,
-                    metric_name=metric_name,
-                    label=metric_name.replace('_', ' ').title(),
-                    render_func=_render_count,
-                )
-            else:
-                yield Metric(metric_name, value)
+        value = pool_data.get(metric_name)
+        
+        # Always yield metric, even if NaN (for graph display)
+        if value is None:
+            yield Metric(metric_name, float('nan'))
+            continue
+            
+        levels_param = _extract_levels(params.get(param_name))
+        if levels_param:
+            yield from check_levels(
+                value,
+                levels_upper=levels_param,
+                metric_name=metric_name,
+                label=metric_name.replace('_', ' ').title(),
+                render_func=_render_count,
+            )
+        else:
+            yield Metric(metric_name, value)
 
 # Create the check plugin
 check_plugin_oposs_zpool_iostat = CheckPlugin(
@@ -379,6 +451,7 @@ check_plugin_oposs_zpool_iostat = CheckPlugin(
         'asyncq_write_wait_levels': None,
         'scrub_wait_levels': None,
         'trim_wait_levels': None,
+        'rebuild_wait_levels': None,
         # Individual queue depth levels
         'syncq_read_pend_levels': None,
         'syncq_read_activ_levels': None,
@@ -390,7 +463,9 @@ check_plugin_oposs_zpool_iostat = CheckPlugin(
         'asyncq_write_activ_levels': None,
         'scrubq_read_pend_levels': None,
         'scrubq_read_activ_levels': None,
-        'trimq_read_pend_levels': None,
-        'trimq_read_activ_levels': None,
+        'trimq_write_pend_levels': None,
+        'trimq_write_activ_levels': None,
+        'rebuildq_write_pend_levels': None,
+        'rebuildq_write_activ_levels': None,
     },
 )

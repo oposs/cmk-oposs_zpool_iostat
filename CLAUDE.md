@@ -71,15 +71,36 @@ field_names = [
     'pool', 'alloc', 'free', 'read_ops', 'write_ops', 'read_bytes', 'write_bytes',
     'read_wait', 'write_wait', 'disk_read_wait', 'disk_write_wait',
     'syncq_read_wait', 'syncq_write_wait', 'asyncq_read_wait', 'asyncq_write_wait',
-    'scrub_wait', 'trim_wait', 'syncq_read_pend', 'syncq_read_activ',
+    'scrub_wait', 'trim_wait', 'rebuild_wait', 'syncq_read_pend', 'syncq_read_activ',
     'syncq_write_pend', 'syncq_write_activ', 'asyncq_read_pend', 'asyncq_read_activ',
     'asyncq_write_pend', 'asyncq_write_activ', 'scrubq_read_pend', 'scrubq_read_activ',
-    'trimq_read_pend', 'trimq_read_activ'
+    'trimq_write_pend', 'trimq_write_activ', 'rebuildq_write_pend', 'rebuildq_write_activ'
 ]
 ```
 
 ### Derived Metrics:
 - `storage_used_percent`: Calculated as `(alloc / (alloc + free)) * 100`
+
+### Time Unit Conversions:
+- **Raw Data**: ZFS reports wait times in nanoseconds
+- **Internal Storage**: All wait time metrics are converted to seconds (SI base unit) and stored with `_s` suffix
+- **User Configuration**: Thresholds are configured in milliseconds for user convenience
+- **Conversion Flow**: 
+  - Agent collects data in nanoseconds
+  - Check plugin converts nanoseconds to seconds (divide by 1e9)
+  - Thresholds in milliseconds are converted to seconds for comparison (divide by 1000)
+  - Display renders seconds as milliseconds (multiply by 1000) for readability
+- **Metric Naming Convention**: Added `_s` suffix to create new metrics, preventing mixing with old nanosecond data
+- **Affected Metrics**: All `*_wait` metrics now have `_s` suffix:
+  - `read_wait_s`, `write_wait_s`, `disk_read_wait_s`, `disk_write_wait_s`
+  - `syncq_read_wait_s`, `syncq_write_wait_s`, `asyncq_read_wait_s`, `asyncq_write_wait_s`
+  - `scrub_wait_s`, `trim_wait_s`, `disk_wait_max_s`
+
+#### Migration Notes:
+- **Breaking Change**: Metric names have changed to include `_s` suffix
+- **Historical Data**: Old metrics stored in nanoseconds will not be compatible with new metrics in seconds
+- **Clean Break**: This is intentional to prevent incorrect data interpretation
+- **Best Practice**: Per CheckMK plugin development guide, always use SI base units (seconds for time, bytes for data)
 
 ## Configuration Principles
 

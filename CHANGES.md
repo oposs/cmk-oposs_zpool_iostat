@@ -8,10 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- Dynamic header parsing in agent plugin - automatically adapts to changes in `zpool iostat` output format
+- Support for ZFS rebuild operations (rebuild_wait, rebuildq_write_pend, rebuildq_write_activ metrics)
+- Much improved graph organization with 5 logical groups:
+  - **Capacity**: Pool storage allocation and usage
+  - **Operations**: Read/write operations per second
+  - **Bandwidth**: Bidirectional read/write throughput visualization
+  - **Wait Times**: Comprehensive view of all wait metrics in a single graph
+  - **Task Queues**: All queue depths (sync, async, scrub, trim, rebuild) in one view
 
 ### Changed
+- **BREAKING**: All wait time metrics now have `_s` suffix to indicate seconds unit (e.g., `read_wait_s`)
+- Wait time metrics converted from nanoseconds to seconds internally (SI base unit)
+- Agent now parses headers dynamically instead of using a hardcoded field list
+- Fixed field naming: trimq_read_* corrected to trimq_write_* (matching actual zpool iostat output)
+- Improved header position calculation by preserving leading whitespace
+- User thresholds configured in milliseconds for convenience, internally converted to seconds
 
 ### Fixed
+- Incorrect parsing of `free` field due to header alignment issues
+- Missing support for rebuild-related fields in newer ZFS versions
+- Proper handling of missing metrics (NaN values) in graphs
 
 ## 0.1.5 - 2025-08-11
 ### Fixed

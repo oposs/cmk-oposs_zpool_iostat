@@ -10,6 +10,7 @@ from cmk.graphing.v1.metrics import (
     DecimalNotation,
     IECNotation,
     Metric,
+    TimeNotation,
     Unit,
 )
 from cmk.graphing.v1.graphs import (
@@ -28,7 +29,7 @@ from cmk.graphing.v1.perfometers import (
 unit_ops_per_sec = Unit(DecimalNotation("/s"))
 unit_bytes_per_sec = Unit(IECNotation("B/s"))
 unit_bytes = Unit(IECNotation("B"))
-unit_milliseconds = Unit(DecimalNotation("ms"))
+unit_seconds = Unit(TimeNotation())  # Use TimeNotation for proper SI scaling (s, ms, μs, etc.)
 unit_count = Unit(DecimalNotation(""))
 unit_percent = Unit(DecimalNotation("%"))
 
@@ -84,77 +85,91 @@ metric_write_throughput = Metric(
     color=Color.LIGHT_PURPLE,
 )
 
-# Wait time metrics
-metric_read_wait = Metric(
-    name="read_wait",
+# Wait time metrics - now in seconds with _s suffix
+metric_read_wait_s = Metric(
+    name="read_wait_s",
     title=Title("Read wait time"),
-    unit=unit_milliseconds,
-    color=Color.YELLOW,
+    unit=unit_seconds,
+    color=Color.BLUE,
 )
 
-metric_write_wait = Metric(
-    name="write_wait",
+metric_write_wait_s = Metric(
+    name="write_wait_s",
     title=Title("Write wait time"),
-    unit=unit_milliseconds,
+    unit=unit_seconds,
+    color=Color.RED,
+)
+
+metric_disk_read_wait_s = Metric(
+    name="disk_read_wait_s",
+    title=Title("Disk read wait time"),
+    unit=unit_seconds,
+    color=Color.CYAN,
+)
+
+metric_disk_write_wait_s = Metric(
+    name="disk_write_wait_s",
+    title=Title("Disk write wait time"),
+    unit=unit_seconds,
     color=Color.ORANGE,
 )
 
-metric_disk_read_wait = Metric(
-    name="disk_read_wait",
-    title=Title("Disk read wait time"),
-    unit=unit_milliseconds,
-    color=Color.LIGHT_YELLOW,
-)
-
-metric_disk_write_wait = Metric(
-    name="disk_write_wait",
-    title=Title("Disk write wait time"),
-    unit=unit_milliseconds,
-    color=Color.LIGHT_ORANGE,
-)
-
-# Queue wait time metrics
-metric_syncq_read_wait = Metric(
-    name="syncq_read_wait",
-    title=Title("Sync queue read wait time"),
-    unit=unit_milliseconds,
-    color=Color.LIGHT_GREEN,
-)
-
-metric_syncq_write_wait = Metric(
-    name="syncq_write_wait",
-    title=Title("Sync queue write wait time"),
-    unit=unit_milliseconds,
-    color=Color.DARK_GREEN,
-)
-
-metric_asyncq_read_wait = Metric(
-    name="asyncq_read_wait",
-    title=Title("Async queue read wait time"),
-    unit=unit_milliseconds,
-    color=Color.LIGHT_BLUE,
-)
-
-metric_asyncq_write_wait = Metric(
-    name="asyncq_write_wait",
-    title=Title("Async queue write wait time"),
-    unit=unit_milliseconds,
-    color=Color.DARK_BLUE,
-)
-
-# Special operation wait times
-metric_scrub_wait = Metric(
-    name="scrub_wait",
-    title=Title("Scrub wait time"),
-    unit=unit_milliseconds,
-    color=Color.LIGHT_RED,
-)
-
-metric_trim_wait = Metric(
-    name="trim_wait",
-    title=Title("Trim wait time"),
-    unit=unit_milliseconds,
+metric_disk_wait_max_s = Metric(
+    name="disk_wait_max_s",
+    title=Title("Max disk wait time"),
+    unit=unit_seconds,
     color=Color.DARK_RED,
+)
+
+# Queue wait time metrics - now in seconds with _s suffix
+metric_syncq_read_wait_s = Metric(
+    name="syncq_read_wait_s",
+    title=Title("Sync queue read wait time"),
+    unit=unit_seconds,
+    color=Color.GREEN,
+)
+
+metric_syncq_write_wait_s = Metric(
+    name="syncq_write_wait_s",
+    title=Title("Sync queue write wait time"),
+    unit=unit_seconds,
+    color=Color.YELLOW,
+)
+
+metric_asyncq_read_wait_s = Metric(
+    name="asyncq_read_wait_s",
+    title=Title("Async queue read wait time"),
+    unit=unit_seconds,
+    color=Color.PURPLE,
+)
+
+metric_asyncq_write_wait_s = Metric(
+    name="asyncq_write_wait_s",
+    title=Title("Async queue write wait time"),
+    unit=unit_seconds,
+    color=Color.PINK,
+)
+
+# Special operation wait times - now in seconds with _s suffix
+metric_scrub_wait_s = Metric(
+    name="scrub_wait_s",
+    title=Title("Scrub wait time"),
+    unit=unit_seconds,
+    color=Color.BROWN,
+)
+
+metric_trim_wait_s = Metric(
+    name="trim_wait_s",
+    title=Title("Trim wait time"),
+    unit=unit_seconds,
+    color=Color.GRAY,
+)
+
+metric_rebuild_wait_s = Metric(
+    name="rebuild_wait_s",
+    title=Title("Rebuild wait time"),
+    unit=unit_seconds,
+    color=Color.PINK,
 )
 
 # Queue depth metrics (pending operations)
@@ -229,53 +244,41 @@ metric_scrubq_read_activ = Metric(
     color=Color.PURPLE,
 )
 
-metric_trimq_read_pend = Metric(
-    name="trimq_read_pend",
-    title=Title("Trim queue read pending"),
+metric_trimq_write_pend = Metric(
+    name="trimq_write_pend",
+    title=Title("Trim queue write pending"),
     unit=unit_count,
     color=Color.LIGHT_BLUE,
 )
 
-metric_trimq_read_activ = Metric(
-    name="trimq_read_activ",
-    title=Title("Trim queue read active"),
+metric_trimq_write_activ = Metric(
+    name="trimq_write_activ",
+    title=Title("Trim queue write active"),
     unit=unit_count,
     color=Color.DARK_BLUE,
 )
 
-# Define graphs
-graph_zpool_operations = Graph(
-    name="zpool_operations",
-    title=Title("ZFS Pool I/O Operations"),
-    compound_lines=[
-        "read_ops",
-        "write_ops",
-    ],
-    minimal_range=MinimalRange(
-        lower=0,
-        upper=100,
-    ),
+metric_rebuildq_write_pend = Metric(
+    name="rebuildq_write_pend",
+    title=Title("Rebuild queue write pending"),
+    unit=unit_count,
+    color=Color.LIGHT_PURPLE,
 )
 
-graph_zpool_throughput = Bidirectional(
-    name="zpool_throughput",
-    title=Title("ZFS Pool Throughput"),
-    lower=Graph(
-        name="zpool_throughput_lower",
-        title=Title("Read Throughput"),
-        compound_lines=["read_throughput"],
-    ),
-    upper=Graph(
-        name="zpool_throughput_upper", 
-        title=Title("Write Throughput"),
-        compound_lines=["write_throughput"],
-    ),
+metric_rebuildq_write_activ = Metric(
+    name="rebuildq_write_activ",
+    title=Title("Rebuild queue write active"),
+    unit=unit_count,
+    color=Color.PURPLE,
 )
 
-graph_zpool_storage = Graph(
-    name="zpool_storage",
-    title=Title("ZFS Pool Storage"),
-    compound_lines=[
+# Define graphs - organized into 5 logical groups
+
+# 1. Capacity - Storage allocation and usage
+graph_zpool_capacity = Graph(
+    name="zpool_capacity",
+    title=Title("ZFS Pool Capacity"),
+    simple_lines=[
         "allocated",
         "free",
     ],
@@ -285,42 +288,107 @@ graph_zpool_storage = Graph(
     ),
 )
 
+# 2. Operations - Read/write operations per second
+graph_zpool_operations = Graph(
+    name="zpool_operations",
+    title=Title("ZFS Pool Operations"),
+    simple_lines=[
+        "read_ops",
+        "write_ops",
+    ],
+    minimal_range=MinimalRange(
+        lower=0,
+        upper=1000,
+    ),
+)
+
+# 3. Bandwidth - Read/write throughput
+graph_zpool_bandwidth = Bidirectional(
+    name="zpool_bandwidth",
+    title=Title("ZFS Pool Bandwidth"),
+    lower=Graph(
+        name="zpool_bandwidth_read",
+        title=Title("Read Bandwidth"),
+        simple_lines=["read_throughput"],
+    ),
+    upper=Graph(
+        name="zpool_bandwidth_write", 
+        title=Title("Write Bandwidth"),
+        simple_lines=["write_throughput"],
+    ),
+)
+
+# 4. Wait Times - Combined graph for all working wait time metrics
+
 graph_zpool_wait_times = Graph(
     name="zpool_wait_times",
     title=Title("ZFS Pool Wait Times"),
     simple_lines=[
-        "read_wait",
-        "write_wait",
-        "disk_read_wait",
-        "disk_write_wait",
+        # Total wait times
+        "read_wait_s",
+        "write_wait_s",
+        # Disk wait times
+        "disk_read_wait_s",
+        "disk_write_wait_s",
+        # Sync queue wait times
+        "syncq_read_wait_s",
+        "syncq_write_wait_s",
+        # Async queue wait times
+        "asyncq_read_wait_s",
+        "asyncq_write_wait_s",
+        # Special operation wait times
+        "scrub_wait_s",
+        "trim_wait_s",
+        "rebuild_wait_s",
+    ],
+    optional=[
+        # All metrics are optional - graph displays even if some are missing
+        "read_wait_s",
+        "write_wait_s",
+        "disk_read_wait_s",
+        "disk_write_wait_s",
+        "syncq_read_wait_s",
+        "syncq_write_wait_s",
+        "asyncq_read_wait_s",
+        "asyncq_write_wait_s",
+        "scrub_wait_s",
+        "trim_wait_s",
+        "rebuild_wait_s",
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=1000,  # 1000ms upper limit
+        upper=0.001,  # 1ms upper limit - typical for fast storage
     ),
 )
 
-graph_zpool_queue_wait_times = Graph(
-    name="zpool_queue_wait_times",
-    title=Title("ZFS Pool Queue Wait Times"),
-    simple_lines=[
-        "syncq_read_wait",
-        "syncq_write_wait",
-        "asyncq_read_wait",
-        "asyncq_write_wait",
-        "scrub_wait",
-        "trim_wait",
-    ],
-    minimal_range=MinimalRange(
-        lower=0,
-        upper=500,  # 500ms upper limit for queue wait times
-    ),
-)
+# 5. Task Queues - Combined graph for sync and async queues
 
 graph_zpool_queue_depths = Graph(
     name="zpool_queue_depths",
     title=Title("ZFS Pool Queue Depths"),
     simple_lines=[
+        # Sync queue depths
+        "syncq_read_pend",
+        "syncq_read_activ",
+        "syncq_write_pend",
+        "syncq_write_activ",
+        # Async queue depths
+        "asyncq_read_pend",
+        "asyncq_read_activ",
+        "asyncq_write_pend",
+        "asyncq_write_activ",
+        # Scrub queue depths  
+        "scrubq_read_pend",
+        "scrubq_read_activ",
+        # Trim queue depths (will be NaN until agent is updated)
+        "trimq_write_pend",
+        "trimq_write_activ",
+        # Rebuild queue depths (will be NaN until agent is updated)
+        "rebuildq_write_pend",
+        "rebuildq_write_activ",
+    ],
+    optional=[
+        # All metrics are optional - graph displays even if some are missing
         "syncq_read_pend",
         "syncq_read_activ",
         "syncq_write_pend",
@@ -329,25 +397,16 @@ graph_zpool_queue_depths = Graph(
         "asyncq_read_activ",
         "asyncq_write_pend",
         "asyncq_write_activ",
-    ],
-    minimal_range=MinimalRange(
-        lower=0,
-        upper=100,  # 100 operations upper limit for queue depths
-    ),
-)
-
-graph_zpool_special_queues = Graph(
-    name="zpool_special_queues",
-    title=Title("ZFS Pool Special Operation Queues"),
-    simple_lines=[
         "scrubq_read_pend",
         "scrubq_read_activ",
-        "trimq_read_pend",
-        "trimq_read_activ",
+        "trimq_write_pend",
+        "trimq_write_activ",
+        "rebuildq_write_pend",
+        "rebuildq_write_activ",
     ],
     minimal_range=MinimalRange(
         lower=0,
-        upper=20,  # 20 operations upper limit for special queues
+        upper=100,  # 100 operations upper limit
     ),
 )
 
@@ -368,10 +427,11 @@ perfometer_zpool_storage = Perfometer(
     name="zpool_storage",
     focus_range=FocusRange(
         lower=Closed(0),
-        upper=Closed(100),
+        upper=Closed(1000000000000),  # 1TB
     ),
     segments=[
-        "storage_used_percent",
+        "allocated",
+        "free",
     ],
 )
 
@@ -379,11 +439,11 @@ perfometer_zpool_wait_times = Perfometer(
     name="zpool_wait_times",
     focus_range=FocusRange(
         lower=Closed(0),
-        upper=Closed(100),
+        upper=Closed(0.1),  # 100ms in seconds
     ),
     segments=[
-        "read_wait",
-        "write_wait",
+        "read_wait_s",
+        "write_wait_s",
     ],
 )
 
@@ -402,8 +462,8 @@ perfometer_zpool_comprehensive = Stacked(
         name="zpool_storage_upper",
         focus_range=FocusRange(
             lower=Closed(0),
-            upper=Closed(100),
+            upper=Closed(1000000000000),  # 1TB
         ),
-        segments=["storage_used_percent"],
+        segments=["allocated", "free"],
     ),
 )
