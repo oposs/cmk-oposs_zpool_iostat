@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+
+### Changed
+
+### Fixed
+
+## 0.2.0 - 2025-08-15
+### New
 - Dynamic header parsing in agent plugin - automatically adapts to changes in `zpool iostat` output format
 - Support for ZFS rebuild operations (rebuild_wait, rebuildq_write_pend, rebuildq_write_activ metrics)
 - Much improved graph organization with 5 logical groups:
