@@ -47,28 +47,18 @@ def _extract_levels(levels_param):
     
     SimpleLevels produces:
     - ("fixed", (warn, crit)) - fixed levels
-    - ("no_levels", None) - no levels configured
     - None - when not configured
+    
+    This function is now simplified since SimpleLevels already produces
+    the correct format for check_levels().
     
     Args:
         levels_param: Levels parameter from ruleset
         
     Returns:
-        Properly formatted levels for check_levels() or None
+        Levels parameter directly (already in correct format) or None
     """
-    if not levels_param:
-        return None
-    
-    # If it's already in the correct format for check_levels
-    if isinstance(levels_param, tuple) and len(levels_param) == 2:
-        # Check if it's already ("fixed", (warn, crit)) or ("no_levels", None) format
-        if levels_param[0] in ("fixed", "no_levels", "predictive"):
-            return levels_param
-        # If both elements are numbers, it's a plain tuple (warn, crit) - wrap it
-        if isinstance(levels_param[0], (int, float)) and isinstance(levels_param[1], (int, float)):
-            return ("fixed", levels_param)
-    
-    # Return as-is if we can't determine the format
+    # SimpleLevels already produces the correct format, just return it
     return levels_param
 
 def _convert_ms_levels_to_seconds(levels_param):
@@ -117,12 +107,10 @@ def _check_wait_time_metric(
     # Convert from nanoseconds to seconds
     value_s = value_ns / 1e9 if value_ns != 0 else 0
     
-    # Extract and convert levels if configured
-    levels = _extract_levels(levels_param)
-    
-    if levels:
+    # Convert levels if configured
+    if levels_param:
         # Convert millisecond thresholds to seconds
-        levels_in_seconds = _convert_ms_levels_to_seconds(levels)
+        levels_in_seconds = _convert_ms_levels_to_seconds(levels_param)
         yield from check_levels(
             value_s,
             levels_upper=levels_in_seconds,
@@ -257,7 +245,7 @@ def check_oposs_zpool_iostat(
         used_percent = (alloc / total) * 100
         
         # Check storage levels using check_levels function
-        levels_upper = _extract_levels(params.get('storage_levels'))
+        levels_upper = params.get('storage_levels')
             
         yield from check_levels(
             used_percent,
@@ -269,7 +257,7 @@ def check_oposs_zpool_iostat(
         )
     
     # I/O Operation metrics and levels
-    read_ops_levels = _extract_levels(params.get('read_ops_levels'))
+    read_ops_levels = params.get('read_ops_levels')
     if read_ops_levels:
         yield from check_levels(
             read_ops,
@@ -281,7 +269,7 @@ def check_oposs_zpool_iostat(
     else:
         yield Metric("read_ops", read_ops)
     
-    write_ops_levels = _extract_levels(params.get('write_ops_levels'))
+    write_ops_levels = params.get('write_ops_levels')
     if write_ops_levels:
         yield from check_levels(
             write_ops,
@@ -294,7 +282,7 @@ def check_oposs_zpool_iostat(
         yield Metric("write_ops", write_ops)
     
     # Throughput metrics and levels
-    read_throughput_levels = _extract_levels(params.get('read_throughput_levels'))
+    read_throughput_levels = params.get('read_throughput_levels')
     if read_throughput_levels:
         yield from check_levels(
             read_bytes,
@@ -306,7 +294,7 @@ def check_oposs_zpool_iostat(
     else:
         yield Metric("read_throughput", read_bytes)
         
-    write_throughput_levels = _extract_levels(params.get('write_throughput_levels'))
+    write_throughput_levels = params.get('write_throughput_levels')
     if write_throughput_levels:
         yield from check_levels(
             write_bytes,
@@ -353,7 +341,7 @@ def check_oposs_zpool_iostat(
     )
     
     # Check combined disk wait levels if configured
-    disk_wait_levels = _extract_levels(params.get('disk_wait_levels'))
+    disk_wait_levels = params.get('disk_wait_levels')
     if disk_wait_levels:
         disk_read_wait_ns = pool_data.get('disk_read_wait')
         disk_write_wait_ns = pool_data.get('disk_write_wait')
@@ -415,7 +403,7 @@ def check_oposs_zpool_iostat(
             yield Metric(metric_name, float('nan'))
             continue
             
-        levels_param = _extract_levels(params.get(param_name))
+        levels_param = params.get(param_name)
         if levels_param:
             yield from check_levels(
                 value,
@@ -436,7 +424,7 @@ check_plugin_oposs_zpool_iostat = CheckPlugin(
     check_function=check_oposs_zpool_iostat,
     check_ruleset_name="oposs_zpool_iostat",
     check_default_parameters={
-        'storage_levels': {'levels_upper': (80.0, 90.0)},  # Default storage usage levels
+        'storage_levels': ('fixed', (80.0, 90.0)),  # Default storage usage levels
         'read_ops_levels': None,
         'write_ops_levels': None,
         'read_wait_levels': None,

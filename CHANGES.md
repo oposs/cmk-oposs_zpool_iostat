@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- Fixed #3: Crash with TypeError when using default storage_levels parameter - incorrect dict format replaced with proper SimpleLevels tuple format
 
 ## 0.2.0 - 2025-08-15
 ### New
