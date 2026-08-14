@@ -250,7 +250,7 @@ def check_oposs_zpool_iostat(
         yield from check_levels(
             used_percent,
             levels_upper=levels_upper,
-            metric_name="storage_used_percent",
+            metric_name="oposs_zpool_storage_used_percent",
             label="Storage utilization",
             boundaries=(0.0, 100.0),
             render_func=render.percent,
@@ -262,24 +262,24 @@ def check_oposs_zpool_iostat(
         yield from check_levels(
             read_ops,
             levels_upper=read_ops_levels,
-            metric_name="read_ops",
+            metric_name="oposs_zpool_read_ops",
             label="Read operations",
             render_func=_render_operations_per_second,
         )
     else:
-        yield Metric("read_ops", read_ops)
+        yield Metric("oposs_zpool_read_ops", read_ops)
     
     write_ops_levels = params.get('write_ops_levels')
     if write_ops_levels:
         yield from check_levels(
             write_ops,
             levels_upper=write_ops_levels,
-            metric_name="write_ops", 
+            metric_name="oposs_zpool_write_ops", 
             label="Write operations",
             render_func=_render_operations_per_second,
         )
     else:
-        yield Metric("write_ops", write_ops)
+        yield Metric("oposs_zpool_write_ops", write_ops)
     
     # Throughput metrics and levels
     read_throughput_levels = params.get('read_throughput_levels')
@@ -287,41 +287,41 @@ def check_oposs_zpool_iostat(
         yield from check_levels(
             read_bytes,
             levels_upper=read_throughput_levels,
-            metric_name="read_throughput",
+            metric_name="oposs_zpool_read_throughput",
             label="Read throughput",
             render_func=render.bytes,
         )
     else:
-        yield Metric("read_throughput", read_bytes)
+        yield Metric("oposs_zpool_read_throughput", read_bytes)
         
     write_throughput_levels = params.get('write_throughput_levels')
     if write_throughput_levels:
         yield from check_levels(
             write_bytes,
             levels_upper=write_throughput_levels,
-            metric_name="write_throughput",
+            metric_name="oposs_zpool_write_throughput",
             label="Write throughput",
             render_func=render.bytes,
         )
     else:
-        yield Metric("write_throughput", write_bytes)
+        yield Metric("oposs_zpool_write_throughput", write_bytes)
     
     # Storage metrics
-    yield Metric("allocated", alloc)
-    yield Metric("free", free)
+    yield Metric("oposs_zpool_allocated", alloc)
+    yield Metric("oposs_zpool_free", free)
     
     # Wait time metrics and levels
     yield from _check_wait_time_metric(
         pool_data.get('read_wait'),
         params.get('read_wait_levels'),
-        "read_wait",
+        "oposs_zpool_read_wait",
         "Read wait time"
     )
     
     yield from _check_wait_time_metric(
         pool_data.get('write_wait'),
         params.get('write_wait_levels'),
-        "write_wait",
+        "oposs_zpool_write_wait",
         "Write wait time"
     )
     
@@ -329,14 +329,14 @@ def check_oposs_zpool_iostat(
     yield from _check_wait_time_metric(
         pool_data.get('disk_read_wait'),
         None,  # No individual levels for disk_read_wait
-        "disk_read_wait",
+        "oposs_zpool_disk_read_wait",
         "Disk read wait time"
     )
     
     yield from _check_wait_time_metric(
         pool_data.get('disk_write_wait'),
         None,  # No individual levels for disk_write_wait
-        "disk_write_wait",
+        "oposs_zpool_disk_write_wait",
         "Disk write wait time"
     )
     
@@ -354,7 +354,7 @@ def check_oposs_zpool_iostat(
                 yield from _check_wait_time_metric(
                     max_disk_wait_ns,
                     params.get('disk_wait_levels'),
-                    "disk_wait_max",
+                    "oposs_zpool_disk_wait_max",
                     "Disk wait time"
                 )
     
@@ -370,10 +370,12 @@ def check_oposs_zpool_iostat(
     ]
     
     for metric_name, param_name, label in queue_wait_metrics:
+        # JSON key stays unprefixed; metric name gets the oposs_zpool_ prefix
+        # (applied inside _check_wait_time_metric, which appends "_s").
         yield from _check_wait_time_metric(
             pool_data.get(metric_name),
             params.get(param_name),
-            metric_name,
+            "oposs_zpool_" + metric_name,
             label
         )
     
@@ -397,23 +399,26 @@ def check_oposs_zpool_iostat(
     
     for metric_name, param_name in queue_depth_metrics:
         value = pool_data.get(metric_name)
-        
+        # Prefix metric name to avoid collisions with Checkmk built-in metrics;
+        # the JSON key from the agent stays unprefixed.
+        prefixed_metric_name = "oposs_zpool_" + metric_name
+
         # Always yield metric, even if NaN (for graph display)
         if value is None:
-            yield Metric(metric_name, float('nan'))
+            yield Metric(prefixed_metric_name, float('nan'))
             continue
-            
+
         levels_param = params.get(param_name)
         if levels_param:
             yield from check_levels(
                 value,
                 levels_upper=levels_param,
-                metric_name=metric_name,
+                metric_name=prefixed_metric_name,
                 label=metric_name.replace('_', ' ').title(),
                 render_func=_render_count,
             )
         else:
-            yield Metric(metric_name, value)
+            yield Metric(prefixed_metric_name, value)
 
 # Create the check plugin
 check_plugin_oposs_zpool_iostat = CheckPlugin(

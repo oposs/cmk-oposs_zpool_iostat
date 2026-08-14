@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### New
 
 ### Changed
+- **BREAKING**: All metric names are now prefixed with `oposs_zpool_` (e.g. `read_ops` -> `oposs_zpool_read_ops`, `free` -> `oposs_zpool_free`) to avoid collisions with built-in metrics introduced in Checkmk 3.0 (e.g. `cmk.plugins.collection.graphing.standalone:metric_read_ops`). This caused "plug-in 'read_ops' already defined" errors on Checkmk 3.0. Existing graphs and RRD history for the old metric names are not carried over.
 
 ### Fixed
+- Fixed compatibility with Checkmk 3.0: "plug-in '...' already defined" errors during `cmk-update-config` / upgrade caused by unprefixed metric names colliding with new built-in metrics
 
 ## 0.2.1 - 2025-09-02
 ### Fixed
