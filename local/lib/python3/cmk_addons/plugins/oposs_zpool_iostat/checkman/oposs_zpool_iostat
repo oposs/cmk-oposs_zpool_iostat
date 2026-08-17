@@ -56,46 +56,56 @@ discovery:
 perfdata:
  The check provides comprehensive performance data including:
 
+ All metric names carry the {oposs_zpool_} prefix. This avoids collisions
+ with the built-in CheckMK metrics of the same base name. Wait times are
+ stored in seconds and carry an {_s} suffix, while the corresponding
+ thresholds are configured in milliseconds.
+
  Basic I/O metrics:
- - {read_ops} - Read operations per second
- - {write_ops} - Write operations per second
- - {read_throughput} - Read throughput in bytes per second
- - {write_throughput} - Write throughput in bytes per second
+ - {oposs_zpool_read_ops} - Read operations per second
+ - {oposs_zpool_write_ops} - Write operations per second
+ - {oposs_zpool_read_throughput} - Read throughput in bytes per second
+ - {oposs_zpool_write_throughput} - Write throughput in bytes per second
 
  Storage capacity:
- - {allocated} - Allocated storage space in bytes
- - {free} - Free storage space in bytes
- - {storage_used_percent} - Storage utilization percentage
+ - {oposs_zpool_allocated} - Allocated storage space in bytes
+ - {oposs_zpool_free} - Free storage space in bytes
+ - {oposs_zpool_storage_used_percent} - Storage utilization percentage
 
  Latency metrics:
- - {read_wait} - Average read I/O wait time in milliseconds
- - {write_wait} - Average write I/O wait time in milliseconds
- - {disk_read_wait} - Disk-level read wait time
- - {disk_write_wait} - Disk-level write wait time
+ - {oposs_zpool_read_wait_s} - Average read I/O wait time in seconds
+ - {oposs_zpool_write_wait_s} - Average write I/O wait time in seconds
+ - {oposs_zpool_disk_read_wait_s} - Disk-level read wait time
+ - {oposs_zpool_disk_write_wait_s} - Disk-level write wait time
+ - {oposs_zpool_disk_wait_max_s} - Higher of the two disk wait times, only
+   emitted when disk wait levels are configured
 
  Queue statistics (when available):
- - {syncq_read_wait} - Synchronous read queue wait time
- - {syncq_write_wait} - Synchronous write queue wait time
- - {asyncq_read_wait} - Asynchronous read queue wait time
- - {asyncq_write_wait} - Asynchronous write queue wait time
- - {scrub_wait} - Scrub operation wait time
- - {trim_wait} - Trim operation wait time
+ - {oposs_zpool_syncq_read_wait_s} - Synchronous read queue wait time
+ - {oposs_zpool_syncq_write_wait_s} - Synchronous write queue wait time
+ - {oposs_zpool_asyncq_read_wait_s} - Asynchronous read queue wait time
+ - {oposs_zpool_asyncq_write_wait_s} - Asynchronous write queue wait time
+ - {oposs_zpool_scrub_wait_s} - Scrub operation wait time
+ - {oposs_zpool_trim_wait_s} - Trim operation wait time
+ - {oposs_zpool_rebuild_wait_s} - Rebuild operation wait time
 
  Queue depths:
- - {syncq_read_pend} - Pending synchronous read operations
- - {syncq_read_activ} - Active synchronous read operations
- - {syncq_write_pend} - Pending synchronous write operations
- - {syncq_write_activ} - Active synchronous write operations
- - {asyncq_read_pend} - Pending asynchronous read operations
- - {asyncq_read_activ} - Active asynchronous read operations
- - {asyncq_write_pend} - Pending asynchronous write operations
- - {asyncq_write_activ} - Active asynchronous write operations
+ - {oposs_zpool_syncq_read_pend} - Pending synchronous read operations
+ - {oposs_zpool_syncq_read_activ} - Active synchronous read operations
+ - {oposs_zpool_syncq_write_pend} - Pending synchronous write operations
+ - {oposs_zpool_syncq_write_activ} - Active synchronous write operations
+ - {oposs_zpool_asyncq_read_pend} - Pending asynchronous read operations
+ - {oposs_zpool_asyncq_read_activ} - Active asynchronous read operations
+ - {oposs_zpool_asyncq_write_pend} - Pending asynchronous write operations
+ - {oposs_zpool_asyncq_write_activ} - Active asynchronous write operations
 
  Special operation queues:
- - {scrubq_read_pend} - Pending scrub read operations
- - {scrubq_read_activ} - Active scrub read operations
- - {trimq_read_pend} - Pending trim read operations
- - {trimq_read_activ} - Active trim read operations
+ - {oposs_zpool_scrubq_read_pend} - Pending scrub read operations
+ - {oposs_zpool_scrubq_read_activ} - Active scrub read operations
+ - {oposs_zpool_trimq_write_pend} - Pending trim write operations
+ - {oposs_zpool_trimq_write_activ} - Active trim write operations
+ - {oposs_zpool_rebuildq_write_pend} - Pending rebuild write operations
+ - {oposs_zpool_rebuildq_write_activ} - Active rebuild write operations
 
 parameters:
  Storage utilization levels:
@@ -123,6 +133,7 @@ parameters:
  - {asyncq_write_wait_levels} - Thresholds for asynchronous write queue wait times
  - {scrub_wait_levels} - Thresholds for scrub operation wait times
  - {trim_wait_levels} - Thresholds for trim operation wait times
+ - {rebuild_wait_levels} - Thresholds for rebuild operation wait times
 
  Queue depth monitoring:
  - {syncq_read_pend_levels} - Thresholds for pending synchronous read operations
@@ -135,8 +146,10 @@ parameters:
  - {asyncq_write_activ_levels} - Thresholds for active asynchronous write operations
  - {scrubq_read_pend_levels} - Thresholds for pending scrub read operations
  - {scrubq_read_activ_levels} - Thresholds for active scrub read operations
- - {trimq_read_pend_levels} - Thresholds for pending trim read operations
- - {trimq_read_activ_levels} - Thresholds for active trim read operations
+ - {trimq_write_pend_levels} - Thresholds for pending trim write operations
+ - {trimq_write_activ_levels} - Thresholds for active trim write operations
+ - {rebuildq_write_pend_levels} - Thresholds for pending rebuild write operations
+ - {rebuildq_write_activ_levels} - Thresholds for active rebuild write operations
 
 cluster:
  In cluster environments, the check can be configured to monitor ZFS pools

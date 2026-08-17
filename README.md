@@ -77,18 +77,24 @@ Configure monitoring thresholds in CheckMK under "Host & Service Parameters" > "
 
 ## Metrics
 
+All metric names carry the `oposs_zpool_` prefix. This avoids collisions with
+the built-in CheckMK metrics of the same base name (`read_ops`, `free`, ...).
+Wait times are stored in seconds and carry an `_s` suffix; the corresponding
+thresholds are configured in milliseconds.
+
 ### Basic Metrics
-- `read_ops`, `write_ops` - Operations per second
-- `read_throughput`, `write_throughput` - Bytes per second
-- `read_wait`, `write_wait` - I/O wait times in milliseconds
-- `storage_used_percent` - Pool utilization percentage
-- `allocated`, `free` - Pool space allocation
+- `oposs_zpool_read_ops`, `oposs_zpool_write_ops` - Operations per second
+- `oposs_zpool_read_throughput`, `oposs_zpool_write_throughput` - Bytes per second
+- `oposs_zpool_read_wait_s`, `oposs_zpool_write_wait_s` - I/O wait times in seconds
+- `oposs_zpool_storage_used_percent` - Pool utilization percentage
+- `oposs_zpool_allocated`, `oposs_zpool_free` - Pool space allocation
 
 ### Advanced Metrics
-- `disk_read_wait`, `disk_write_wait` - Disk-level wait times
-- `syncq_*_wait`, `asyncq_*_wait` - Queue-specific wait times
-- `scrub_wait`, `trim_wait` - Maintenance operation wait times
-- `*_pend`, `*_activ` - Queue depths (pending/active operations)
+- `oposs_zpool_disk_read_wait_s`, `oposs_zpool_disk_write_wait_s` - Disk-level wait times
+- `oposs_zpool_disk_wait_max_s` - Higher of the two disk wait times (only emitted when disk wait levels are configured)
+- `oposs_zpool_syncq_*_wait_s`, `oposs_zpool_asyncq_*_wait_s` - Queue-specific wait times
+- `oposs_zpool_scrub_wait_s`, `oposs_zpool_trim_wait_s`, `oposs_zpool_rebuild_wait_s` - Maintenance operation wait times
+- `oposs_zpool_*_pend`, `oposs_zpool_*_activ` - Queue depths (pending/active operations)
 
 ## Requirements
 
