@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### New
+- Metric translations (`graphing/translations.py`) that map all 33 pre-0.3.0 metric names onto their `oposs_zpool_`-prefixed equivalents. This recovers the graph history that the 0.3.0 rename orphaned: RRD files are never renamed on disk, so the translation aliases the old data onto the new metric name at query time and merges the two series chronologically. Sites that already upgraded to 0.3.0 get their pre-upgrade history back; no manual RRD migration is needed. This supersedes the "RRD history is not carried over" note in the 0.3.0 entry below.
 
 ### Changed
 
