@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### New
 
 ### Changed
+
+### Fixed
+
+## 0.3.0 - 2026-08-17
+### Changed
 - **BREAKING**: All metric names are now prefixed with `oposs_zpool_` (e.g. `read_ops` -> `oposs_zpool_read_ops`, `free` -> `oposs_zpool_free`) to avoid collisions with built-in metrics introduced in Checkmk 3.0 (e.g. `cmk.plugins.collection.graphing.standalone:metric_read_ops`). This caused "plug-in 'read_ops' already defined" errors on Checkmk 3.0. Existing graphs and RRD history for the old metric names are not carried over.
 - **BREAKING**: Graph and perfometer names are now prefixed with `oposs_zpool_` as well (e.g. `zpool_capacity` -> `oposs_zpool_capacity`). These live in the same global registry as metric names and are exposed to the same collision risk, so they are renamed in the same breaking change rather than in a later one.
 - Documentation (`README.md`, checkman page) updated to the prefixed metric names, the `_s` seconds suffix on wait times, and the `oposs_zpool_rebuild*` metrics that were previously undocumented.
