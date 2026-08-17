@@ -58,5 +58,28 @@ translation_oposs_zpool_iostat = translations.Translation(
         "trimq_write_activ": translations.RenameTo("oposs_zpool_trimq_write_activ"),
         "rebuildq_write_pend": translations.RenameTo("oposs_zpool_rebuildq_write_pend"),
         "rebuildq_write_activ": translations.RenameTo("oposs_zpool_rebuildq_write_activ"),
+
+        # --- pre-0.2.0 metrics -------------------------------------------
+        # Before 0.2.0 wait times were stored as the raw nanosecond values
+        # that ZFS reports, under names without the _s suffix. Scale them to
+        # seconds (ns * 1e-9) as well as renaming.
+        "read_wait": translations.RenameToAndScaleBy("oposs_zpool_read_wait_s", 1e-9),
+        "write_wait": translations.RenameToAndScaleBy("oposs_zpool_write_wait_s", 1e-9),
+        "disk_read_wait": translations.RenameToAndScaleBy("oposs_zpool_disk_read_wait_s", 1e-9),
+        "disk_write_wait": translations.RenameToAndScaleBy("oposs_zpool_disk_write_wait_s", 1e-9),
+        "disk_wait_max": translations.RenameToAndScaleBy("oposs_zpool_disk_wait_max_s", 1e-9),
+        "syncq_read_wait": translations.RenameToAndScaleBy("oposs_zpool_syncq_read_wait_s", 1e-9),
+        "syncq_write_wait": translations.RenameToAndScaleBy("oposs_zpool_syncq_write_wait_s", 1e-9),
+        "asyncq_read_wait": translations.RenameToAndScaleBy("oposs_zpool_asyncq_read_wait_s", 1e-9),
+        "asyncq_write_wait": translations.RenameToAndScaleBy("oposs_zpool_asyncq_write_wait_s", 1e-9),
+        "scrub_wait": translations.RenameToAndScaleBy("oposs_zpool_scrub_wait_s", 1e-9),
+        "trim_wait": translations.RenameToAndScaleBy("oposs_zpool_trim_wait_s", 1e-9),
+
+        # Before 0.2.0 the agent used a hardcoded positional field list and
+        # labelled the trim queue columns "read". ZFS has no trim read queue;
+        # these were always the trim *write* columns, so the old series is the
+        # same measurement under a wrong name.
+        "trimq_read_pend": translations.RenameTo("oposs_zpool_trimq_write_pend"),
+        "trimq_read_activ": translations.RenameTo("oposs_zpool_trimq_write_activ"),
     },
 )
