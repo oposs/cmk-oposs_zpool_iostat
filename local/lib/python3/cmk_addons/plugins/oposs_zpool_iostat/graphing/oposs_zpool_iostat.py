@@ -276,7 +276,7 @@ metric_rebuildq_write_activ = Metric(
 
 # 1. Capacity - Storage allocation and usage
 graph_zpool_capacity = Graph(
-    name="zpool_capacity",
+    name="oposs_zpool_capacity",
     title=Title("ZFS Pool Capacity"),
     simple_lines=[
         "oposs_zpool_allocated",
@@ -290,7 +290,7 @@ graph_zpool_capacity = Graph(
 
 # 2. Operations - Read/write operations per second
 graph_zpool_operations = Graph(
-    name="zpool_operations",
+    name="oposs_zpool_operations",
     title=Title("ZFS Pool Operations"),
     simple_lines=[
         "oposs_zpool_read_ops",
@@ -304,15 +304,15 @@ graph_zpool_operations = Graph(
 
 # 3. Bandwidth - Read/write throughput
 graph_zpool_bandwidth = Bidirectional(
-    name="zpool_bandwidth",
+    name="oposs_zpool_bandwidth",
     title=Title("ZFS Pool Bandwidth"),
     lower=Graph(
-        name="zpool_bandwidth_read",
+        name="oposs_zpool_bandwidth_read",
         title=Title("Read Bandwidth"),
         simple_lines=["oposs_zpool_read_throughput"],
     ),
     upper=Graph(
-        name="zpool_bandwidth_write", 
+        name="oposs_zpool_bandwidth_write", 
         title=Title("Write Bandwidth"),
         simple_lines=["oposs_zpool_write_throughput"],
     ),
@@ -321,7 +321,7 @@ graph_zpool_bandwidth = Bidirectional(
 # 4. Wait Times - Combined graph for all working wait time metrics
 
 graph_zpool_wait_times = Graph(
-    name="zpool_wait_times",
+    name="oposs_zpool_wait_times",
     title=Title("ZFS Pool Wait Times"),
     simple_lines=[
         # Total wait times
@@ -364,7 +364,7 @@ graph_zpool_wait_times = Graph(
 # 5. Task Queues - Combined graph for sync and async queues
 
 graph_zpool_queue_depths = Graph(
-    name="zpool_queue_depths",
+    name="oposs_zpool_queue_depths",
     title=Title("ZFS Pool Queue Depths"),
     simple_lines=[
         # Sync queue depths
@@ -412,7 +412,7 @@ graph_zpool_queue_depths = Graph(
 
 # Define perfometers
 perfometer_zpool_operations = Perfometer(
-    name="zpool_operations",
+    name="oposs_zpool_operations",
     focus_range=FocusRange(
         lower=Closed(0),
         upper=Closed(1000),
@@ -424,7 +424,7 @@ perfometer_zpool_operations = Perfometer(
 )
 
 perfometer_zpool_storage = Perfometer(
-    name="zpool_storage",
+    name="oposs_zpool_storage",
     focus_range=FocusRange(
         lower=Closed(0),
         upper=Closed(1000000000000),  # 1TB
@@ -436,7 +436,7 @@ perfometer_zpool_storage = Perfometer(
 )
 
 perfometer_zpool_wait_times = Perfometer(
-    name="zpool_wait_times",
+    name="oposs_zpool_wait_times",
     focus_range=FocusRange(
         lower=Closed(0),
         upper=Closed(0.1),  # 100ms in seconds
@@ -449,9 +449,9 @@ perfometer_zpool_wait_times = Perfometer(
 
 # Stacked perfometer for comprehensive view
 perfometer_zpool_comprehensive = Stacked(
-    name="zpool_comprehensive",
+    name="oposs_zpool_comprehensive",
     lower=Perfometer(
-        name="zpool_ops_lower",
+        name="oposs_zpool_ops_lower",
         focus_range=FocusRange(
             lower=Closed(0),
             upper=Closed(1000),
@@ -459,7 +459,7 @@ perfometer_zpool_comprehensive = Stacked(
         segments=["oposs_zpool_read_ops", "oposs_zpool_write_ops"],
     ),
     upper=Perfometer(
-        name="zpool_storage_upper",
+        name="oposs_zpool_storage_upper",
         focus_range=FocusRange(
             lower=Closed(0),
             upper=Closed(1000000000000),  # 1TB
