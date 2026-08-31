@@ -136,7 +136,7 @@ Enable debug logging by running the agent plugin manually:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+GNU General Public License v2 - OETIKER+PARTNER AG. See [LICENSE](LICENSE).
 
 ## Support
 
