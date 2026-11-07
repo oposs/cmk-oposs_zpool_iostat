@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 CheckMK Check Plugin for OPOSS zpool iostat monitoring
 Processes I/O statistics from zpool iostat command using CheckMK 2.3 v2 API
@@ -10,20 +9,22 @@ user convenience and converted to seconds internally for comparison.
 Time-based metrics are stored with _s suffix to indicate seconds unit.
 """
 
+import json
+from collections.abc import Mapping
+from typing import Any
+
 from cmk.agent_based.v2 import (
     AgentSection,
     CheckPlugin,
     CheckResult,
     DiscoveryResult,
+    Metric,
     Result,
     Service,
     State,
-    Metric,
-    render,
     check_levels,
+    render,
 )
-from typing import Any, Dict, List, Mapping, Optional, Tuple
-import json
 
 # ZFS iostat data is now parsed from JSON format by the agent
 
@@ -97,7 +98,7 @@ def _convert_ms_levels_to_seconds(levels_param):
     return levels_param
 
 def _check_wait_time_metric(
-    value_ns: Optional[float],
+    value_ns: float | None,
     levels_param: Any,
     metric_name: str,
     label: str
@@ -138,7 +139,7 @@ def _check_wait_time_metric(
         yield Metric(metric_name + "_s", value_s)
 
 
-def parse_oposs_zpool_iostat(string_table: List[List[str]]) -> Dict[str, Any]:
+def parse_oposs_zpool_iostat(string_table: list[list[str]]) -> dict[str, Any]:
     """
     Parse oposs_zpool_iostat agent data from JSON format.
     
@@ -175,9 +176,10 @@ def parse_oposs_zpool_iostat(string_table: List[List[str]]) -> Dict[str, Any]:
                 pools[pool_name] = {'_error': 'Invalid JSON structure'}
                 
         except json.JSONDecodeError as e:
-            pools[pool_name] = {'_error': f'JSON parsing failed: {str(e)}'}
-        except Exception as e:
-            pools[pool_name] = {'_error': f'Unexpected error: {str(e)}'}
+            pools[pool_name] = {'_error': f'JSON parsing failed: {e!s}'}
+        # One unreadable pool line must not cost the other pools their data
+        except Exception as e:  # noqa: BLE001
+            pools[pool_name] = {'_error': f'Unexpected error: {e!s}'}
     
     return pools
 
@@ -187,7 +189,7 @@ agent_section_oposs_zpool_iostat = AgentSection(
     parse_function=parse_oposs_zpool_iostat,
 )
 
-def discover_oposs_zpool_iostat(section: Dict[str, Any]) -> DiscoveryResult:
+def discover_oposs_zpool_iostat(section: dict[str, Any]) -> DiscoveryResult:
     """
     Discover zpool iostat services.
     
@@ -205,7 +207,7 @@ def discover_oposs_zpool_iostat(section: Dict[str, Any]) -> DiscoveryResult:
 def check_oposs_zpool_iostat(
     item: str, 
     params: Mapping[str, Any], 
-    section: Dict[str, Any]
+    section: dict[str, Any]
 ) -> CheckResult:
     """
     Check zpool iostat metrics.

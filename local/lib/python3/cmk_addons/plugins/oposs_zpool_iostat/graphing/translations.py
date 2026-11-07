@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Metric translations for the OPOSS zpool iostat plugin.
 

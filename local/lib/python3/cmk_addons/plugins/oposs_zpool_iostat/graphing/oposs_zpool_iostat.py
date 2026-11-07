@@ -1,10 +1,14 @@
-#!/usr/bin/env python3
 """
 CheckMK Graphing configuration for OPOSS zpool iostat monitoring
 Defines metrics, graphs, and perfometers using CheckMK 2.3 v1 graphing API
 """
 
 from cmk.graphing.v1 import Title
+from cmk.graphing.v1.graphs import (
+    Bidirectional,
+    Graph,
+    MinimalRange,
+)
 from cmk.graphing.v1.metrics import (
     Color,
     DecimalNotation,
@@ -13,15 +17,10 @@ from cmk.graphing.v1.metrics import (
     TimeNotation,
     Unit,
 )
-from cmk.graphing.v1.graphs import (
-    Graph,
-    MinimalRange,
-    Bidirectional,
-)
 from cmk.graphing.v1.perfometers import (
-    Perfometer,
-    FocusRange,
     Closed,
+    FocusRange,
+    Perfometer,
     Stacked,
 )
 
