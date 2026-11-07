@@ -4,6 +4,7 @@ import importlib.util
 import json
 import math
 import pathlib
+import re
 import sys
 from importlib.machinery import SourceFileLoader
 
@@ -261,3 +262,35 @@ def test_agent_error_line(check):
     (result,) = _run(check, section)
     assert result == Result(state=State.UNKNOWN, summary="Parse error: No pools found")
 
+
+
+# --- version -----------------------------------------------------------------
+
+def _released_version():
+    """The newest released heading of CHANGES.md, the version the publish
+    check expects in every version_files target between releases."""
+    return re.search(r"^## (\d+\.\d+\.\d+)", (ROOT / "CHANGES.md").read_text(),
+                     flags=re.MULTILINE).group(1)
+
+
+def test_check_carries_the_released_version():
+    # The publish check fails on main when a version file disagrees with
+    # the newest released CHANGES.md heading.
+    assert re.search(rf'^__version__ = "{re.escape(_released_version())}"$',
+                     CHECK.read_text(), flags=re.MULTILINE)
+
+
+def test_release_writes_version_into_check(tmp_path):
+    """Apply the version_files entry of .github/repo-infra.json to the check
+    module, as Create release PR does (a multiline regex, first match)"""
+    config = json.loads((ROOT / ".github/repo-infra.json").read_text())
+    (spec,) = [f for f in config["version_files"] if (ROOT / f["path"]) == CHECK]
+    stamped = re.sub(spec["pattern"], spec["replacement"].replace("$VERSION", "9.8.7"),
+                     CHECK.read_text(), count=1, flags=re.MULTILINE)
+    assert re.search(spec["verify"].replace("$VERSION", re.escape("9.8.7")), stamped, flags=re.MULTILINE)
+    copy = tmp_path / "stamped_check.py"
+    copy.write_text(stamped)
+    module_spec = importlib.util.spec_from_file_location("stamped_check", copy)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    assert module.__version__ == "9.8.7"

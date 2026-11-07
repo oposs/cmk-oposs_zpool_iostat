@@ -26,6 +26,10 @@ from cmk.agent_based.v2 import (
     render,
 )
 
+# Create release PR writes the released version here (version_files in
+# .github/repo-infra.json)
+__version__ = "0.3.1"
+
 # ZFS iostat data is now parsed from JSON format by the agent
 
 def _render_operations_per_second(value: float) -> str:
