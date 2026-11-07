@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously held the MIT text.
 
 ### Fixed
+- The "ZPool I/O" service showed read and write throughput as a size, for example "Read throughput: 9.50 MiB", when throughput levels were set. It now shows a rate, "9.50 MiB/s".
+- The agent bakery rule "OPOSS zpool iostat Agent Deployment" accepted a sampling duration of 0. zpool iostat refuses that ("interval cannot be zero"), so the "ZPool I/O" services got no data. The rule now asks for at least 1 second.
+- The same rule accepted a command timeout of 0, which made every zpool call time out at once and left the "ZPool I/O" services without data. The timeout must now be at least 1 second.
 
 ## 0.3.1 - 2026-08-17
 ### New

@@ -11,6 +11,7 @@ from cmk.rulesets.v1.form_specs import (
     Integer,
     TimeMagnitude,
     TimeSpan,
+    validators,
 )
 from cmk.rulesets.v1.rule_specs import AgentConfig, Topic
 
@@ -43,6 +44,8 @@ def _parameter_form_oposs_zpool_iostat_bakery():
                         "than this value, it will be terminated and an error reported."
                     ),
                     displayed_magnitudes=[TimeMagnitude.SECOND],
+                    # A timeout of 0 makes every zpool call time out at once
+                    custom_validate=[validators.NumberInRange(min_value=1.0)],
                     prefill=DefaultValue(30.0),
                 )
             ),
@@ -57,6 +60,8 @@ def _parameter_form_oposs_zpool_iostat_bakery():
                         "passed to the zpool iostat command."
                     ),
                     unit_symbol="seconds",
+                    # zpool iostat rejects an interval of 0
+                    custom_validate=[validators.NumberInRange(min_value=1)],
                     prefill=DefaultValue(10),
                 )
             ),
