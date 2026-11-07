@@ -2,6 +2,12 @@
   "moving_major_tag": false,
   "version_files": [
     {
+      "path": "local/share/check_mk/agents/plugins/oposs_zpool_iostat",
+      "pattern": "^__version__ = \"[^\"]*\"",
+      "replacement": "__version__ = \"$VERSION\"",
+      "verify": "^__version__ = \"$VERSION\""
+    },
+    {
       "path": "local/lib/python3/cmk_addons/plugins/oposs_zpool_iostat/agent_based/oposs_zpool_iostat.py",
       "pattern": "^__version__ = \"[^\"]*\"",
       "replacement": "__version__ = \"$VERSION\"",

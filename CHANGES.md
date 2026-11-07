@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### New
 - The package carries the release version in its check plugin (`__version__`).
+- The agent plugin from the MKP carries the release version in `__version__`.
 
 ### Changed
 - Licence is now GNU General Public License v2, aligning this plugin

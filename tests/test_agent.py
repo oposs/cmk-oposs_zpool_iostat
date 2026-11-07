@@ -1,6 +1,7 @@
 """Tests for the agent plugin (runs on the monitored host)."""
 
 import json
+import re
 import subprocess
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -248,3 +249,40 @@ def test_bakery_deploys_the_plugin_with_its_interval(bakery):
 
 def test_bakery_without_rule_deploys_nothing(bakery):
     assert list(bakery.get_oposs_zpool_iostat_files(None)) == []
+
+
+# --- version -----------------------------------------------------------------
+
+def _released_version():
+    """The newest released heading of CHANGES.md, the version the publish
+    check expects in every version_files target between releases."""
+    return re.search(r"^## (\d+\.\d+\.\d+)", (ROOT / "CHANGES.md").read_text(),
+                     flags=re.MULTILINE).group(1)
+
+
+def test_agent_carries_the_released_version():
+    # The publish check fails on main when a version file disagrees with
+    # the newest released CHANGES.md heading.
+    assert re.search(rf'^__version__ = "{re.escape(_released_version())}"$',
+                     AGENT.read_text(), flags=re.MULTILINE)
+
+
+def test_release_writes_version_into_agent(tmp_path):
+    """Apply the version_files entry of .github/repo-infra.json to a copy of
+    the agent, as Create release PR does (a multiline regex, first match)"""
+    config = json.loads((ROOT / ".github/repo-infra.json").read_text())
+    (spec,) = [f for f in config["version_files"] if Path(f["path"]).name == AGENT.name]
+    stamped = re.sub(spec["pattern"], spec["replacement"].replace("$VERSION", "9.8.7"),
+                     AGENT.read_text(), count=1, flags=re.MULTILINE)
+    assert re.search(spec["verify"].replace("$VERSION", re.escape("9.8.7")), stamped, flags=re.MULTILINE)
+    copy = tmp_path / "oposs_zpool_iostat"
+    copy.write_text(stamped)
+    assert _load(copy, "stamped_agent").__version__ == "9.8.7"
+
+
+def test_agent_is_executable_in_git():
+    # The Checkmk agent skips plugins without the executable bit; the MKP
+    # build takes the mode from git.
+    out = subprocess.run(["git", "ls-files", "-s", AGENT.name], cwd=AGENT.parent,
+                         capture_output=True, text=True, check=True).stdout
+    assert out.split()[0] == "100755"
