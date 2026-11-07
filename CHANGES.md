@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - The "ZPool I/O" service showed read and write throughput as a size, for example "Read throughput: 9.50 MiB", when throughput levels were set. It now shows a rate, "9.50 MiB/s".
+- The agent bakery rule "OPOSS zpool iostat Agent Deployment" accepted a sampling duration of 0. zpool iostat refuses that ("interval cannot be zero"), so the "ZPool I/O" services got no data. The rule now asks for at least 1 second.
 
 ## 0.3.1 - 2026-08-17
 ### New

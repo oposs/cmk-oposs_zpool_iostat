@@ -104,8 +104,6 @@ def _minimum(spec):
     return ranges[0][0] if ranges else None
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: the bakery form accepts a sampling duration of 0, "
-                                        "which zpool iostat rejects, so the agent sends no data")
 def test_bakery_sampling_duration_has_a_minimum(bakery_rulesets):
     spec = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form().elements["sampling_duration"]
     minimum = _minimum(spec.parameter_form)

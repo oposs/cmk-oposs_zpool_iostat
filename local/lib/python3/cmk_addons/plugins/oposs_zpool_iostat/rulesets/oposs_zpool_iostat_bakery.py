@@ -11,6 +11,7 @@ from cmk.rulesets.v1.form_specs import (
     Integer,
     TimeMagnitude,
     TimeSpan,
+    validators,
 )
 from cmk.rulesets.v1.rule_specs import AgentConfig, Topic
 
@@ -57,6 +58,8 @@ def _parameter_form_oposs_zpool_iostat_bakery():
                         "passed to the zpool iostat command."
                     ),
                     unit_symbol="seconds",
+                    # zpool iostat rejects an interval of 0
+                    custom_validate=[validators.NumberInRange(min_value=1)],
                     prefill=DefaultValue(10),
                 )
             ),
