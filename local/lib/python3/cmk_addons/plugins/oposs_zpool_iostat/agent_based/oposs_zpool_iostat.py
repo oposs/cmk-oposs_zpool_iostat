@@ -36,6 +36,10 @@ def _render_operations_per_second(value: float) -> str:
     """Render operations per second with 1 decimal place."""
     return f"{value:.1f}/s"
 
+def _render_bytes_per_second(value: float) -> str:
+    """Render throughput as a rate in the IEC units of the bandwidth graph."""
+    return f"{render.bytes(value)}/s"
+
 def _render_milliseconds(value: float) -> str:
     """Render value as milliseconds with 2 decimal places.
     Input value is in seconds, convert to milliseconds for display.
@@ -310,7 +314,7 @@ def check_oposs_zpool_iostat(
             levels_upper=read_throughput_levels,
             metric_name="oposs_zpool_read_throughput",
             label="Read throughput",
-            render_func=render.bytes,
+            render_func=_render_bytes_per_second,
         )
     else:
         yield Metric("oposs_zpool_read_throughput", read_bytes)
@@ -322,7 +326,7 @@ def check_oposs_zpool_iostat(
             levels_upper=write_throughput_levels,
             metric_name="oposs_zpool_write_throughput",
             label="Write throughput",
-            render_func=render.bytes,
+            render_func=_render_bytes_per_second,
         )
     else:
         yield Metric("oposs_zpool_write_throughput", write_bytes)

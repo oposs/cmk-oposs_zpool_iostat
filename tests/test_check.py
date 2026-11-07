@@ -171,8 +171,8 @@ def test_missing_latency_and_queue_fields_graph_as_gaps(check):
 @pytest.mark.parametrize("param,levels,state,text", [
     ("read_ops_levels", (100, 200), State.WARN, "Read operations: 152.0/s (warn/crit at 100.0/s/200.0/s)"),
     ("write_ops_levels", (500, 800), State.CRIT, "Write operations: 873.0/s (warn/crit at 500.0/s/800.0/s)"),
-    ("read_throughput_levels", (5000000, 20000000), State.WARN, "Read throughput: 9.50 MiB"),
-    ("write_throughput_levels", (10000000, 50000000), State.CRIT, "Write throughput: 50.0 MiB"),
+    ("read_throughput_levels", (5000000, 20000000), State.WARN, "Read throughput: 9.50 MiB/s"),
+    ("write_throughput_levels", (10000000, 50000000), State.CRIT, "Write throughput: 50.0 MiB/s"),
     ("asyncq_write_pend_levels", (10, 20), State.WARN, "Asyncq Write Pend: 12 (warn/crit at 10/20)"),
     ("asyncq_write_activ_levels", (2, 4), State.CRIT, "Asyncq Write Activ: 4 (warn/crit at 2/4)"),
 ])
@@ -232,7 +232,6 @@ def test_levels_off_give_metrics_only(check, section):
     assert len(_metrics(out)) == 32
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: throughput is rendered as a size (MiB), not as a rate (MiB/s)")
 @pytest.mark.parametrize("param,label", [
     ("read_throughput_levels", "Read throughput"),
     ("write_throughput_levels", "Write throughput"),
@@ -240,7 +239,7 @@ def test_levels_off_give_metrics_only(check, section):
 def test_throughput_is_shown_per_second(check, section, param, label):
     out = _run(check, section, **{param: ("fixed", (1, 2))})
     (hit,) = [r for r in _results(out) if r.summary.startswith(label)]
-    assert hit.summary.split(" (")[0].endswith("B/s")
+    assert hit.summary.split(" (")[0].endswith("MiB/s")
 
 
 # --- check: missing or broken data -------------------------------------------------

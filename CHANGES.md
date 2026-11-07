@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously held the MIT text.
 
 ### Fixed
+- The "ZPool I/O" service showed read and write throughput as a size, for example "Read throughput: 9.50 MiB", when throughput levels were set. It now shows a rate, "9.50 MiB/s".
 
 ## 0.3.1 - 2026-08-17
 ### New
