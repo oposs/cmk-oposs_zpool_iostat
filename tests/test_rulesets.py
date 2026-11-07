@@ -6,7 +6,7 @@ import pathlib
 import sys
 
 import pytest
-from cmk.rulesets.v1.form_specs import SimpleLevels
+from cmk.rulesets.v1.form_specs import SimpleLevels, validators
 from cmk.rulesets.v1.rule_specs import HostAndItemCondition
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -90,9 +90,31 @@ def test_bakery_writes_the_settings():
 
 @pytest.mark.parametrize("key", [
     "timeout",
+    pytest.param("interval", marks=pytest.mark.xfail(
+        strict=True, reason="BUG: an unset interval bakes 60 s, the form suggests 300 s")),
     "sampling_duration",
 ])
 def test_bakery_form_prefill_matches_bakery_default(bakery_rulesets, key):
     form = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form()
     assert form.elements[key].parameter_form.prefill.value == _baked({})[key]
 
+
+def _minimum(spec):
+    ranges = [v.range for v in (spec.custom_validate or ()) if isinstance(v, validators.NumberInRange)]
+    return ranges[0][0] if ranges else None
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: the bakery form accepts a sampling duration of 0, "
+                                        "which zpool iostat rejects, so the agent sends no data")
+def test_bakery_sampling_duration_has_a_minimum(bakery_rulesets):
+    spec = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form().elements["sampling_duration"]
+    minimum = _minimum(spec.parameter_form)
+    assert minimum is not None and minimum >= 1
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: the bakery form accepts a timeout of 0, "
+                                        "which makes every zpool call time out at once")
+def test_bakery_timeout_has_a_minimum(bakery_rulesets):
+    spec = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form().elements["timeout"]
+    minimum = _minimum(spec.parameter_form)
+    assert minimum is not None and minimum >= 1

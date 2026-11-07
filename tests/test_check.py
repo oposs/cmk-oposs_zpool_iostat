@@ -231,6 +231,17 @@ def test_levels_off_give_metrics_only(check, section):
     assert len(_metrics(out)) == 32
 
 
+@pytest.mark.xfail(strict=True, reason="BUG: throughput is rendered as a size (MiB), not as a rate (MiB/s)")
+@pytest.mark.parametrize("param,label", [
+    ("read_throughput_levels", "Read throughput"),
+    ("write_throughput_levels", "Write throughput"),
+])
+def test_throughput_is_shown_per_second(check, section, param, label):
+    out = _run(check, section, **{param: ("fixed", (1, 2))})
+    (hit,) = [r for r in _results(out) if r.summary.startswith(label)]
+    assert hit.summary.split(" (")[0].endswith("B/s")
+
+
 # --- check: missing or broken data -------------------------------------------------
 
 def test_pool_gone(check, section):
