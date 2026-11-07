@@ -1,19 +1,17 @@
-#!/usr/bin/env python3
 """
 CheckMK Ruleset for OPOSS zpool iostat monitoring parameters
 Provides GUI configuration interface for zpool iostat thresholds and monitoring options
 """
 
-from cmk.rulesets.v1 import Title, Help, Label
+from cmk.rulesets.v1 import Help, Title
 from cmk.rulesets.v1.form_specs import (
-    BooleanChoice,
     DefaultValue,
     DictElement,
     Dictionary,
     Float,
     Integer,
-    SimpleLevels,
     LevelDirection,
+    SimpleLevels,
     validators,
 )
 from cmk.rulesets.v1.rule_specs import (
@@ -21,6 +19,7 @@ from cmk.rulesets.v1.rule_specs import (
     HostAndItemCondition,
     Topic,
 )
+
 
 def _parameter_form_oposs_zpool_iostat():
     """Configuration form for zpool iostat check parameters."""

@@ -1,21 +1,19 @@
-#!/usr/bin/env python3
 """
 CheckMK Agent Bakery ruleset for OPOSS zpool iostat monitoring
 Provides GUI configuration interface for Agent Bakery deployment
 """
 
-from cmk.rulesets.v1 import Label, Title, Help
+from cmk.rulesets.v1 import Help, Label, Title
 from cmk.rulesets.v1.form_specs import (
-    BooleanChoice,
     DefaultValue,
     DictElement,
     Dictionary,
     Integer,
-    TimeSpan,
     TimeMagnitude,
-    validators,
+    TimeSpan,
 )
 from cmk.rulesets.v1.rule_specs import AgentConfig, Topic
+
 
 def _parameter_form_oposs_zpool_iostat_bakery():
     """Configuration interface for zpool iostat agent plugin."""

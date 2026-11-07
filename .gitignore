@@ -5,6 +5,9 @@
 !/.gitignore
 !/.github
 !/.mkp-builder.ini
+!/tests
+!/pytest.ini
+!/requirements-dev.txt
 *~
 *.swp
 *.bak
@@ -14,3 +17,5 @@
 *.idea
 *.env
 __pycache__
+.cmk-api/
+.pytest-tmp/

@@ -1,20 +1,21 @@
-#!/usr/bin/env python3
 """
 CheckMK Agent Bakery plugin for OPOSS zpool iostat monitoring
 Provides centralized deployment and configuration management for zpool iostat agent plugin
 """
 
 import json
+from pathlib import Path
+from typing import Any
+
 from cmk.base.plugins.bakery.bakery_api.v1 import (
-    register,
+    OS,
     Plugin,
     PluginConfig,
-    OS,
+    register,
 )
-from pathlib import Path
-from typing import Any, Dict
 
-def get_oposs_zpool_iostat_files(conf: Dict[str, Any]):
+
+def get_oposs_zpool_iostat_files(conf: dict[str, Any]):
     """
     Files function for zpool iostat bakery plugin.
     
