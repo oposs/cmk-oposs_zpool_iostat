@@ -44,6 +44,8 @@ def _parameter_form_oposs_zpool_iostat_bakery():
                         "than this value, it will be terminated and an error reported."
                     ),
                     displayed_magnitudes=[TimeMagnitude.SECOND],
+                    # A timeout of 0 makes every zpool call time out at once
+                    custom_validate=[validators.NumberInRange(min_value=1.0)],
                     prefill=DefaultValue(30.0),
                 )
             ),

@@ -110,8 +110,6 @@ def test_bakery_sampling_duration_has_a_minimum(bakery_rulesets):
     assert minimum is not None and minimum >= 1
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: the bakery form accepts a timeout of 0, "
-                                        "which makes every zpool call time out at once")
 def test_bakery_timeout_has_a_minimum(bakery_rulesets):
     spec = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form().elements["timeout"]
     minimum = _minimum(spec.parameter_form)
