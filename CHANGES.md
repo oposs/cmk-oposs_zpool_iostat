@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously held the MIT text.
 
 ### Fixed
+- When zpool failed on a host (zpool missing, ZFS module not loaded, a timeout, no pools), the agent plugin wrote the reason only to its error output, and the "ZPool I/O" services did not say why their data was missing. They now go UNKNOWN with the reason, for example "Parse error: zpool command not found. ZFS not installed?".
 - An agent bakery rule "OPOSS zpool iostat Agent Deployment" without an execution interval ran the agent plugin every 60 seconds, although the rule offers 300 seconds. It now runs it every 300 seconds.
 - The "ZPool I/O" service showed read and write throughput as a size, for example "Read throughput: 9.50 MiB", when throughput levels were set. It now shows a rate, "9.50 MiB/s".
 - The agent bakery rule "OPOSS zpool iostat Agent Deployment" accepted a sampling duration of 0. zpool iostat refuses that ("interval cannot be zero"), so the "ZPool I/O" services got no data. The rule now asks for at least 1 second.
