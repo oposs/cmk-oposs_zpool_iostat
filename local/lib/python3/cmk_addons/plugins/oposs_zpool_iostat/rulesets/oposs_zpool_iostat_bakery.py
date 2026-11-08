@@ -3,7 +3,7 @@ CheckMK Agent Bakery ruleset for OPOSS zpool iostat monitoring
 Provides GUI configuration interface for Agent Bakery deployment
 """
 
-from cmk.rulesets.v1 import Help, Label, Title
+from cmk.rulesets.v1 import Help, Label, Message, Title
 from cmk.rulesets.v1.form_specs import (
     DefaultValue,
     DictElement,
@@ -14,6 +14,24 @@ from cmk.rulesets.v1.form_specs import (
     validators,
 )
 from cmk.rulesets.v1.rule_specs import AgentConfig, Topic
+
+# The values the bakery plugin and the agent use for an unset element
+DEFAULT_TIMEOUT = 30.0
+DEFAULT_SAMPLING_DURATION = 10
+
+
+def _validate_timeout_exceeds_sampling(value):
+    """zpool iostat runs for the whole sampling duration, so a timeout that is
+    not longer kills every call before it reports."""
+    timeout = value.get("timeout", DEFAULT_TIMEOUT)
+    sampling = value.get("sampling_duration", DEFAULT_SAMPLING_DURATION)
+    if timeout <= sampling:
+        raise validators.ValidationError(
+            Message(
+                "The command execution timeout (%s s) must be longer than the zpool iostat "
+                "sampling duration (%s s): zpool iostat runs for the whole sampling duration."
+            ) % (f"{timeout:g}", f"{sampling:g}")
+        )
 
 
 def _parameter_form_oposs_zpool_iostat_bakery():
@@ -65,7 +83,8 @@ def _parameter_form_oposs_zpool_iostat_bakery():
                     prefill=DefaultValue(10),
                 )
             ),
-        }
+        },
+        custom_validate=[_validate_timeout_exceeds_sampling],
     )
 
 # Register the bakery rule specification

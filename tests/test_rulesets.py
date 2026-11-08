@@ -113,3 +113,44 @@ def test_bakery_timeout_has_a_minimum(bakery_rulesets):
     spec = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form().elements["timeout"]
     minimum = _minimum(spec.parameter_form)
     assert minimum is not None and minimum >= 1
+
+
+def _form_errors(bakery_rulesets, value):
+    """Run the bakery form's own validators on a rule value; return the messages."""
+    form = bakery_rulesets.rule_spec_oposs_zpool_iostat_bakery.parameter_form()
+    errors = []
+    for validate in form.custom_validate or ():
+        try:
+            validate(value)
+        except validators.ValidationError as exc:
+            errors.append(exc.message.localize(lambda s: s))
+    return errors
+
+
+@pytest.mark.parametrize("value", [
+    {"timeout": 10.0, "sampling_duration": 10},
+    {"timeout": 5.0, "sampling_duration": 10},
+    {"timeout": 20.0, "sampling_duration": 60},
+    {"sampling_duration": 30},      # unset timeout bakes 30 s
+    {"timeout": 10.0},              # unset sampling duration bakes 10 s
+])
+def test_bakery_form_refuses_timeout_not_longer_than_sampling(bakery_rulesets, value):
+    (message,) = _form_errors(bakery_rulesets, value)
+    assert message.startswith("The command execution timeout (")
+    assert "must be longer than the zpool iostat sampling duration" in message
+
+
+@pytest.mark.parametrize("value", [
+    {},                                          # the defaults: 30 s and 10 s
+    {"timeout": 30.0, "sampling_duration": 10},  # the prefills
+    {"timeout": 11.0, "sampling_duration": 10},
+    {"timeout": 90.0, "sampling_duration": 60, "interval": 600.0},
+])
+def test_bakery_form_accepts_timeout_longer_than_sampling(bakery_rulesets, value):
+    assert _form_errors(bakery_rulesets, value) == []
+
+
+def test_validator_defaults_are_the_bakery_defaults(bakery_rulesets):
+    baked = _baked({})
+    assert bakery_rulesets.DEFAULT_TIMEOUT == baked["timeout"]
+    assert bakery_rulesets.DEFAULT_SAMPLING_DURATION == baked["sampling_duration"]
