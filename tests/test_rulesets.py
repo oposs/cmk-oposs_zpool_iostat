@@ -90,8 +90,7 @@ def test_bakery_writes_the_settings():
 
 @pytest.mark.parametrize("key", [
     "timeout",
-    pytest.param("interval", marks=pytest.mark.xfail(
-        strict=True, reason="BUG: an unset interval bakes 60 s, the form suggests 300 s")),
+    "interval",
     "sampling_duration",
 ])
 def test_bakery_form_prefill_matches_bakery_default(bakery_rulesets, key):

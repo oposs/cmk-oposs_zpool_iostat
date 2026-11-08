@@ -247,6 +247,12 @@ def test_bakery_deploys_the_plugin_with_its_interval(bakery):
     assert plugin.kwargs["interval"] == 600
 
 
+def test_bakery_default_interval_is_five_minutes(bakery):
+    files = list(bakery.get_oposs_zpool_iostat_files({}))
+    (plugin,) = [f for f in files if "lines" not in f.kwargs]
+    assert plugin.kwargs["interval"] == 300
+
+
 def test_bakery_without_rule_deploys_nothing(bakery):
     assert list(bakery.get_oposs_zpool_iostat_files(None)) == []
 
