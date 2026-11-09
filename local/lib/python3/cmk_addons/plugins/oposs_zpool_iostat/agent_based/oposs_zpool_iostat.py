@@ -28,7 +28,7 @@ from cmk.agent_based.v2 import (
 
 # Create release PR writes the released version here (version_files in
 # .github/repo-infra.json)
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 # ZFS iostat data is now parsed from JSON format by the agent
 
