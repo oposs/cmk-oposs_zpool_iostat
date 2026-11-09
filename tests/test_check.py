@@ -5,6 +5,7 @@ import json
 import math
 import pathlib
 import re
+import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
 
@@ -261,6 +262,47 @@ def test_agent_error_line(check):
     (result,) = _run(check, section)
     assert result == Result(state=State.UNKNOWN, summary="Parse error: No pools found")
 
+
+
+
+# --- agent errors, end to end ----------------------------------------------------
+
+def _agent_string_table(monkeypatch, tmp_path, capsys, run):
+    """Run the agent plugin with a failing zpool and split its section the
+    way Checkmk does for sep(124)."""
+    loader = SourceFileLoader("oposs_zpool_iostat_agent_failing", str(AGENT))
+    agent = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(agent)
+    monkeypatch.setattr(agent, "CONFIG_FILE", str(tmp_path / "oposs_zpool_iostat.json"))
+    monkeypatch.setattr(agent.subprocess, "run", run)
+    agent.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "<<<oposs_zpool_iostat:sep(124)>>>"
+    return [line.split("|") for line in lines[1:]]
+
+
+def _missing(cmd, **kwargs):
+    raise FileNotFoundError(cmd[0])
+
+
+def _hanging(cmd, **kwargs):
+    raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+
+def _module_not_loaded(cmd, **kwargs):
+    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="The ZFS modules are not loaded.\n")
+
+
+@pytest.mark.parametrize("run,reason", [
+    (_missing, "zpool command not found. ZFS not installed?"),
+    (_hanging, "zpool iostat command timed out after 30 seconds"),
+    (_module_not_loaded, "zpool iostat (headers) failed with code 1: The ZFS modules are not loaded."),
+])
+def test_agent_error_shows_on_the_service(check, monkeypatch, tmp_path, capsys, run, reason):
+    section = check.parse_oposs_zpool_iostat(_agent_string_table(monkeypatch, tmp_path, capsys, run))
+    # Existing services show the reason; the error creates no new ones
+    assert list(check.discover_oposs_zpool_iostat(section)) == []
+    assert _run(check, section) == [Result(state=State.UNKNOWN, summary=f"Parse error: {reason}")]
 
 
 # --- version -----------------------------------------------------------------

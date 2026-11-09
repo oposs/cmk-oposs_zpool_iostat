@@ -29,7 +29,8 @@ def get_oposs_zpool_iostat_files(conf: dict[str, Any]):
         return
 
     # Get configuration values with defaults
-    interval = int(conf.get("interval", 60))
+    # The same 300 s the bakery rule pre-fills
+    interval = int(conf.get("interval", 300))
     timeout = conf.get("timeout", 30)
     sampling_duration = conf.get("sampling_duration", 10)
     

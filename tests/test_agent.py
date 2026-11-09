@@ -44,15 +44,26 @@ def agent(tmp_path, monkeypatch):
     return module
 
 
+NO_MODULE = "The ZFS modules are not loaded.\nTry running 'modprobe zfs' as root to load them.\n"
+
+
 def _fake_run(rows, layout=zs.ZFS_2, calls=None, header_rc=0, data_rc=0):
-    """A subprocess.run replacement answering the two zpool iostat calls."""
+    """A subprocess.run replacement answering the two zpool iostat calls.
+
+    Without rows it answers like zpool on a host without pools: with an
+    interval it exits 0, prints nothing on stdout and "no pools available"
+    on stderr.
+    """
 
     def run(cmd, **kwargs):
         if calls is not None:
             calls.append((cmd, kwargs))
         if "-ylpq" in cmd:
-            return subprocess.CompletedProcess(cmd, header_rc, stdout=zs.table(rows, layout),
-                                               stderr="" if header_rc == 0 else "no pools available\n")
+            if header_rc:
+                return subprocess.CompletedProcess(cmd, header_rc, stdout="", stderr=NO_MODULE)
+            if not rows:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="no pools available\n")
+            return subprocess.CompletedProcess(cmd, 0, stdout=zs.table(rows, layout), stderr="")
         if "-Hylpq" in cmd:
             return subprocess.CompletedProcess(cmd, data_rc, stdout=zs.scripted(rows),
                                                stderr="" if data_rc == 0 else "interval cannot be zero\n")
@@ -157,45 +168,57 @@ def test_short_lines_are_skipped(agent):
 
 # --- failures ------------------------------------------------------------------
 
-def _failed_run(agent, capsys):
-    with pytest.raises(SystemExit) as exc:
-        agent.main()
+def _error_run(agent, capsys):
+    """Run the agent; return its one ERROR record and its stderr."""
+    agent.main()  # returns: a failing zpool is not a failing plugin
     out = capsys.readouterr()
-    # The section header still goes out, the reason goes to stderr
-    assert out.out.splitlines() == ["<<<oposs_zpool_iostat:sep(124)>>>"]
-    assert exc.value.code == 1
-    return out.err
+    lines = out.out.splitlines()
+    assert lines[0] == "<<<oposs_zpool_iostat:sep(124)>>>"
+    (record,) = lines[1:]
+    assert record.startswith("ERROR|")
+    # One reason field, nothing that would split it further
+    assert record.count("|") == 1
+    reason = record[len("ERROR|"):]
+    assert "ERROR: " + reason in out.err
+    return reason
 
 
 def test_header_call_fails(agent, monkeypatch, capsys):
     monkeypatch.setattr(agent.subprocess, "run", _fake_run([("tank", zs.TANK)], header_rc=1))
-    err = _failed_run(agent, capsys)
-    assert "zpool iostat (headers) failed with code 1: no pools available" in err
+    assert _error_run(agent, capsys) == (
+        "zpool iostat (headers) failed with code 1: The ZFS modules are not loaded. "
+        "Try running 'modprobe zfs' as root to load them.")
 
 
 def test_data_call_fails(agent, monkeypatch, capsys):
     monkeypatch.setattr(agent.subprocess, "run", _fake_run([("tank", zs.TANK)], data_rc=2))
-    err = _failed_run(agent, capsys)
-    assert "zpool iostat failed with code 2: interval cannot be zero" in err
+    assert _error_run(agent, capsys) == "zpool iostat failed with code 2: interval cannot be zero"
 
 
 def test_zpool_missing(agent, monkeypatch, capsys):
     def run(cmd, **kwargs):
         raise FileNotFoundError(cmd[0])
     monkeypatch.setattr(agent.subprocess, "run", run)
-    assert "zpool command not found" in _failed_run(agent, capsys)
+    assert _error_run(agent, capsys) == "zpool command not found. ZFS not installed?"
 
 
 def test_zpool_times_out(agent, monkeypatch, capsys):
     def run(cmd, **kwargs):
         raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
     monkeypatch.setattr(agent.subprocess, "run", run)
-    assert "timed out after 30 seconds" in _failed_run(agent, capsys)
+    assert _error_run(agent, capsys) == "zpool iostat command timed out after 30 seconds"
 
 
 def test_no_pools(agent, monkeypatch, capsys):
     monkeypatch.setattr(agent.subprocess, "run", _fake_run([]))
-    assert "No pools found" in _failed_run(agent, capsys)
+    assert _error_run(agent, capsys) == "No pools found"
+
+
+def test_unexpected_error_keeps_the_separator_out(agent, monkeypatch, capsys):
+    def run(cmd, **kwargs):
+        raise OSError("broken | pipe\nsecond line")
+    monkeypatch.setattr(agent.subprocess, "run", run)
+    assert _error_run(agent, capsys) == "Unexpected error running zpool iostat: broken / pipe second line"
 
 
 # --- configuration written by the agent bakery ---------------------------------
@@ -245,6 +268,12 @@ def test_bakery_deploys_the_plugin_with_its_interval(bakery):
     (plugin,) = [f for f in files if "lines" not in f.kwargs]
     assert plugin.kwargs["source"] == Path("oposs_zpool_iostat")
     assert plugin.kwargs["interval"] == 600
+
+
+def test_bakery_default_interval_is_five_minutes(bakery):
+    files = list(bakery.get_oposs_zpool_iostat_files({}))
+    (plugin,) = [f for f in files if "lines" not in f.kwargs]
+    assert plugin.kwargs["interval"] == 300
 
 
 def test_bakery_without_rule_deploys_nothing(bakery):

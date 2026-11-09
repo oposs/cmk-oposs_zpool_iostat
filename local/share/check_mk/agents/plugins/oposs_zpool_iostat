@@ -18,6 +18,21 @@ __version__ = "0.3.1"
 # Configuration file path using MK_CONFDIR environment variable
 CONFIG_FILE = os.path.join(os.environ.get("MK_CONFDIR", "/etc/check_mk"), "oposs_zpool_iostat.json")
 
+class ZpoolError(Exception):
+    """Why there is no pool data; main() sends it to Checkmk as the ERROR line."""
+
+
+def report_error(message: str) -> None:
+    """Print the ERROR line the check plugin shows, and the same text on stderr.
+
+    The section separator is "|" and the check reads one line per record, so
+    both are kept out of the message.
+    """
+    message = " ".join(str(message).replace("|", "/").split())
+    print("ERROR|" + message)
+    print("ERROR: " + message, file=sys.stderr)
+
+
 def get_config() -> Dict:
     """Read and parse the JSON configuration file."""
     if not os.path.exists(CONFIG_FILE):
@@ -151,7 +166,10 @@ def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional
         sampling_duration: How long iostat collects data before reporting
         
     Returns:
-        Tuple of (field_names, data_output) or None on error
+        Tuple of (field_names, data_output)
+
+    Raises:
+        ZpoolError: with the reason when zpool gives no usable data
     """
     try:
         # First run without -H to get headers
@@ -164,15 +182,17 @@ def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional
         )
         
         if result_headers.returncode != 0:
-            print(f"ERROR: zpool iostat (headers) failed with code {result_headers.returncode}: {result_headers.stderr}", file=sys.stderr)
-            return None
+            raise ZpoolError(f"zpool iostat (headers) failed with code {result_headers.returncode}: {result_headers.stderr}")
         
         # Parse headers to build field names
         # Don't strip() as it removes leading spaces needed for position calculation
         header_lines = result_headers.stdout.split('\n')
         if len(header_lines) < 2:
-            print("ERROR: Unable to parse zpool iostat headers", file=sys.stderr)
-            return None
+            # With an interval, zpool iostat exits 0 on a host without pools
+            # and says so only on stderr
+            if "no pools available" in result_headers.stderr:
+                raise ZpoolError("No pools found")
+            raise ZpoolError(f"Unable to parse zpool iostat headers {result_headers.stderr}")
         
         field_names = parse_headers(header_lines[0], header_lines[1])
         
@@ -187,20 +207,18 @@ def run_zpool_iostat(timeout: int = 30, sampling_duration: int = 10) -> Optional
         )
         
         if result.returncode != 0:
-            print(f"ERROR: zpool iostat failed with code {result.returncode}: {result.stderr}", file=sys.stderr)
-            return None
+            raise ZpoolError(f"zpool iostat failed with code {result.returncode}: {result.stderr}")
             
         return field_names, result.stdout.strip()
         
     except subprocess.TimeoutExpired:
-        print(f"ERROR: zpool iostat command timed out after {timeout} seconds", file=sys.stderr)
-        return None
+        raise ZpoolError(f"zpool iostat command timed out after {timeout} seconds")
     except FileNotFoundError:
-        print("ERROR: zpool command not found. ZFS not installed?", file=sys.stderr)
-        return None
+        raise ZpoolError("zpool command not found. ZFS not installed?")
+    except ZpoolError:
+        raise
     except Exception as e:
-        print(f"ERROR: Unexpected error running zpool iostat: {e}", file=sys.stderr)
-        return None
+        raise ZpoolError(f"Unexpected error running zpool iostat: {e}")
 
 def parse_iostat_output(output: str, field_names: List[str]) -> Dict[str, Dict]:
     """
@@ -264,31 +282,29 @@ def main():
     # Always start with section header - using JSON encoding with custom separator
     print("<<<oposs_zpool_iostat:sep(124)>>>")
     
-    # Get iostat data with headers
-    result = run_zpool_iostat(timeout, sampling_duration)
-    if result is None:
-        # Output error state for monitoring
-        print("ERROR|No data available", file=sys.stderr)
-        sys.exit(1)
-    
-    field_names, iostat_output = result
-    
+    # Every failure goes into the section as an ERROR line, so the
+    # "ZPool I/O" services show the reason; the plugin itself succeeds.
+    try:
+        field_names, iostat_output = run_zpool_iostat(timeout, sampling_duration)
+    except ZpoolError as e:
+        report_error(str(e))
+        return
+
     # Parse and output structured data as JSON
     try:
         parsed_pools = parse_iostat_output(iostat_output, field_names)
-        
-        if not parsed_pools:
-            print("ERROR|No pools found", file=sys.stderr)
-            sys.exit(1)
-        
-        # Output each pool as JSON with pipe separator
-        for pool_name, pool_data in parsed_pools.items():
-            json_data = json.dumps(pool_data, separators=(',', ':'))
-            print(f"{pool_name}|{json_data}")
-            
     except Exception as e:
-        print(f"ERROR|Parsing failed: {e}", file=sys.stderr)
-        sys.exit(1)
+        report_error(f"Parsing failed: {e}")
+        return
+
+    if not parsed_pools:
+        report_error("No pools found")
+        return
+
+    # Output each pool as JSON with pipe separator
+    for pool_name, pool_data in parsed_pools.items():
+        json_data = json.dumps(pool_data, separators=(',', ':'))
+        print(f"{pool_name}|{json_data}")
 
 if __name__ == "__main__":
     main()
