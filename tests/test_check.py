@@ -260,7 +260,7 @@ def test_pool_with_broken_payload(check):
 def test_agent_error_line(check):
     section = check.parse_oposs_zpool_iostat([["ERROR", "No pools found"], ["tank", "{}"]])
     (result,) = _run(check, section)
-    assert result == Result(state=State.UNKNOWN, summary="Parse error: No pools found")
+    assert result == Result(state=State.UNKNOWN, summary="No data from zpool: No pools found")
 
 
 
@@ -302,7 +302,7 @@ def test_agent_error_shows_on_the_service(check, monkeypatch, tmp_path, capsys, 
     section = check.parse_oposs_zpool_iostat(_agent_string_table(monkeypatch, tmp_path, capsys, run))
     # Existing services show the reason; the error creates no new ones
     assert list(check.discover_oposs_zpool_iostat(section)) == []
-    assert _run(check, section) == [Result(state=State.UNKNOWN, summary=f"Parse error: {reason}")]
+    assert _run(check, section) == [Result(state=State.UNKNOWN, summary=f"No data from zpool: {reason}")]
 
 
 # --- version -----------------------------------------------------------------
