@@ -232,7 +232,7 @@ def check_oposs_zpool_iostat(
     if '_parse_error' in section:
         yield Result(
             state=State.UNKNOWN,
-            summary=f"Parse error: {section['_parse_error']}"
+            summary=f"No data from zpool: {section['_parse_error']}"
         )
         return
     

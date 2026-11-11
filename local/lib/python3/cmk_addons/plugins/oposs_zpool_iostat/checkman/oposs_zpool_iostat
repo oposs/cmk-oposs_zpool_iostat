@@ -175,6 +175,6 @@ examples:
  Error conditions:
  - Pool not accessible: Service reports UNKNOWN state
  - ZFS command timeout: Service reports UNKNOWN with timeout message
- - Parse errors: Service reports UNKNOWN with parsing error details
+ - zpool fails or gives no pool data: Service reports UNKNOWN with "No data from zpool:" and the reason
  - High latency: Service reports WARNING/CRITICAL based on configured thresholds
  - Storage near capacity: Service reports WARNING/CRITICAL based on utilization levels

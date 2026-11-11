@@ -96,6 +96,18 @@ thresholds are configured in milliseconds.
 - `oposs_zpool_scrub_wait_s`, `oposs_zpool_trim_wait_s`, `oposs_zpool_rebuild_wait_s` - Maintenance operation wait times
 - `oposs_zpool_*_pend`, `oposs_zpool_*_activ` - Queue depths (pending/active operations)
 
+### Known Limitation: Queue History Before 0.2.0
+
+Before 0.2.0 the agent plugin assigned the `zpool iostat` columns by a fixed
+position. OpenZFS 2.0 added a `rebuild` wait column after `trim`, so on such
+hosts every queue metric recorded before 0.2.0 holds the value of the column
+to its left: `syncq_read_pend` holds the rebuild wait time in nanoseconds,
+`syncq_read_activ` holds `syncq_read_pend`, and so on up to `trimq_read_activ`,
+which holds `trimq_write_pend`. The trim write activity and the rebuild queue
+columns were not recorded. The queue graphs show this old history as it was
+stored. A metric translation cannot correct it, because the same old metric
+names are correct on OpenZFS 0.8 hosts.
+
 ## Requirements
 
 - ZFS filesystem with `zpool` command available
