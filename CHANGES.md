@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+
+## 0.4.1 - 2026-11-11
+### Fixed
 - When zpool failed on a host, the "ZPool I/O" services said "Parse error: …", for example "Parse error: zpool command not found. ZFS not installed?", although nothing was parsed. They now say "No data from zpool: …" with the same reason; the state stays UNKNOWN.
 
 ## 0.4.0 - 2026-11-09
