@@ -23,8 +23,11 @@ import shutil
 import subprocess
 import sys
 
-# The Checkmk version this plugin targets. Raise it to find out what breaks.
-CMK_VERSION = "2.3.0"
+# The Checkmk release tag the tests run against, the same release as
+# version.packaged in .mkp-builder.ini. A tag, not a branch: a branch moves,
+# and the test results would change without a commit here. Raise it to find
+# out what breaks.
+CMK_VERSION = "v2.3.0p52"
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
