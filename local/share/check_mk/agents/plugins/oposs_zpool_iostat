@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 
 # Create release PR writes the released version here (version_files in
 # .github/repo-infra.json)
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 # Configuration file path using MK_CONFDIR environment variable
 CONFIG_FILE = os.path.join(os.environ.get("MK_CONFDIR", "/etc/check_mk"), "oposs_zpool_iostat.json")
